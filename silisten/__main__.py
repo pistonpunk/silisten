@@ -165,7 +165,6 @@ def main(argv=None):
     shortcut_parser = sub.add_parser("shortcut", help="bind the GNOME shortcut")
     shortcut_parser.add_argument("chord", nargs="?", help="e.g. 'Shift+Tab+Q'")
     setup_parser = sub.add_parser("setup", help="install input rule, autostart and models")
-    setup_parser.add_argument("--hf-token", dest="hf_token")
     setup_parser.add_argument("--no-prefetch", action="store_true")
     config_parser = sub.add_parser("config", help="show or set config")
     config_parser.add_argument("--set", action="append", metavar="KEY=VALUE")
