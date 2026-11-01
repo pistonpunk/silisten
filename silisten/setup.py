@@ -15,6 +15,7 @@ EMBEDDING_URL = (
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/"
     "wespeaker_en_voxceleb_CAM++.onnx"
 )
+VAD_URL = "https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx"
 
 GBINDINGS = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings"
 SCHEMA = "org.gnome.settings-daemon.plugins.media-keys"
@@ -109,12 +110,13 @@ def install_diarization_models():
             subprocess.run(["tar", "xjf", str(archive), "-C", str(base)], check=True)
             archive.unlink()
         download(EMBEDDING_URL, base / "emb.onnx")
+        download(VAD_URL, base / "silero_vad.onnx")
     except Exception as e:
         print(f"  diarization models: failed ({e})")
         return False
-    from .engine import EMBEDDING_FILE, SEGMENTATION_FILE
+    from .engine import EMBEDDING_FILE, SEGMENTATION_FILE, VAD_FILE
 
-    ok = (base / SEGMENTATION_FILE).is_file() and (base / EMBEDDING_FILE).is_file()
+    ok = all((base / name).is_file() for name in (SEGMENTATION_FILE, EMBEDDING_FILE, VAD_FILE))
     print(f"  diarization models: {'ok' if ok else 'incomplete'}")
     return ok
 
