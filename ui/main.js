@@ -11,6 +11,18 @@ let lastReveal = null;
 
 app.commandLine.appendSwitch('ozone-platform', 'x11');
 
+const single = app.requestSingleInstanceLock();
+if (!single) {
+  app.quit();
+}
+
+app.on('second-instance', () => {
+  if (win) {
+    win.show();
+    win.focus();
+  }
+});
+
 function bounds(height) {
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const wa = display.workArea;

@@ -180,41 +180,237 @@ function escapeHtml(value) {
 
 const LANGUAGES = [
   ['', 'Auto'],
-  ['en', 'English'],
-  ['de', 'German'],
-  ['fr', 'French'],
-  ['es', 'Spanish'],
-  ['it', 'Italian'],
-  ['pt', 'Portuguese'],
-  ['nl', 'Dutch'],
-  ['pl', 'Polish'],
-  ['ru', 'Russian'],
-  ['uk', 'Ukrainian'],
-  ['tr', 'Turkish'],
-  ['ar', 'Arabic'],
-  ['hi', 'Hindi'],
-  ['ja', 'Japanese'],
-  ['ko', 'Korean'],
-  ['zh', 'Chinese']
+  ['af', "Afrikaans"],
+  ['sq', "Albanian"],
+  ['am', "Amharic"],
+  ['ar', "Arabic"],
+  ['hy', "Armenian"],
+  ['as', "Assamese"],
+  ['az', "Azerbaijani"],
+  ['ba', "Bashkir"],
+  ['eu', "Basque"],
+  ['be', "Belarusian"],
+  ['bn', "Bengali"],
+  ['bs', "Bosnian"],
+  ['br', "Breton"],
+  ['bg', "Bulgarian"],
+  ['yue', "Cantonese"],
+  ['ca', "Catalan"],
+  ['zh', "Chinese"],
+  ['hr', "Croatian"],
+  ['cs', "Czech"],
+  ['da', "Danish"],
+  ['nl', "Dutch"],
+  ['en', "English"],
+  ['et', "Estonian"],
+  ['fo', "Faroese"],
+  ['fi', "Finnish"],
+  ['fr', "French"],
+  ['gl', "Galician"],
+  ['ka', "Georgian"],
+  ['de', "German"],
+  ['el', "Greek"],
+  ['gu', "Gujarati"],
+  ['ht', "Haitian Creole"],
+  ['ha', "Hausa"],
+  ['haw', "Hawaiian"],
+  ['he', "Hebrew"],
+  ['hi', "Hindi"],
+  ['hu', "Hungarian"],
+  ['is', "Icelandic"],
+  ['id', "Indonesian"],
+  ['it', "Italian"],
+  ['ja', "Japanese"],
+  ['jw', "Javanese"],
+  ['kn', "Kannada"],
+  ['kk', "Kazakh"],
+  ['km', "Khmer"],
+  ['ko', "Korean"],
+  ['lo', "Lao"],
+  ['la', "Latin"],
+  ['lv', "Latvian"],
+  ['ln', "Lingala"],
+  ['lt', "Lithuanian"],
+  ['lb', "Luxembourgish"],
+  ['mk', "Macedonian"],
+  ['mg', "Malagasy"],
+  ['ms', "Malay"],
+  ['ml', "Malayalam"],
+  ['mt', "Maltese"],
+  ['mi', "Maori"],
+  ['mr', "Marathi"],
+  ['mn', "Mongolian"],
+  ['my', "Myanmar"],
+  ['ne', "Nepali"],
+  ['no', "Norwegian"],
+  ['nn', "Nynorsk"],
+  ['oc', "Occitan"],
+  ['ps', "Pashto"],
+  ['fa', "Persian"],
+  ['pl', "Polish"],
+  ['pt', "Portuguese"],
+  ['pa', "Punjabi"],
+  ['ro', "Romanian"],
+  ['ru', "Russian"],
+  ['sa', "Sanskrit"],
+  ['sr', "Serbian"],
+  ['sn', "Shona"],
+  ['sd', "Sindhi"],
+  ['si', "Sinhala"],
+  ['sk', "Slovak"],
+  ['sl', "Slovenian"],
+  ['so', "Somali"],
+  ['es', "Spanish"],
+  ['su', "Sundanese"],
+  ['sw', "Swahili"],
+  ['sv', "Swedish"],
+  ['tl', "Tagalog"],
+  ['tg', "Tajik"],
+  ['ta', "Tamil"],
+  ['tt', "Tatar"],
+  ['te', "Telugu"],
+  ['th', "Thai"],
+  ['bo', "Tibetan"],
+  ['tr', "Turkish"],
+  ['tk', "Turkmen"],
+  ['uk', "Ukrainian"],
+  ['ur', "Urdu"],
+  ['uz', "Uzbek"],
+  ['vi', "Vietnamese"],
+  ['cy', "Welsh"],
+  ['yi', "Yiddish"],
+  ['yo', "Yoruba"],
 ];
 
-const quickLanguage = $('quick-language');
-for (const [value, label] of LANGUAGES) {
-  const option = document.createElement('option');
-  option.value = value;
-  option.textContent = label;
-  quickLanguage.append(option);
+const menus = {
+  'language-menu': $('language-menu'),
+  'input-menu': $('input-menu')
+};
+let openMenuId = null;
+
+function buildLanguageMenu() {
+  menus['language-menu'].replaceChildren();
+  for (const [value, label] of LANGUAGES) {
+    const item = document.createElement('li');
+    item.dataset.value = value;
+    item.textContent = label;
+    item.setAttribute('role', 'option');
+    item.addEventListener('click', () => {
+      window.silisten.post('/config', { language: value });
+      closeMenu();
+    });
+    menus['language-menu'].append(item);
+  }
 }
 
-quickLanguage.addEventListener('change', () => {
-  window.silisten.post('/config', { language: quickLanguage.value });
-  quickLanguage.blur();
+const inputLabels = { default: 'Default mic' };
+
+async function refreshInputLabel(id, label) {
+  const list = await window.silisten.get('/sources');
+  for (const source of Array.isArray(list) ? list : []) inputLabels[source.id] = source.label;
+  if (inputLabels[id]) label.textContent = inputLabels[id];
+}
+
+async function buildInputMenu() {
+  const list = await window.silisten.get('/sources');
+  const menu = menus['input-menu'];
+  menu.replaceChildren();
+  const current = state ? state.config.input_device || 'default' : 'default';
+  const options = [{ id: 'default', label: 'Default mic' }, ...(Array.isArray(list) ? list : [])];
+  for (const option of options) inputLabels[option.id] = option.label;
+  for (const source of options) {
+    const item = document.createElement('li');
+    item.dataset.value = source.id;
+    item.textContent = source.label;
+    item.setAttribute('role', 'option');
+    item.classList.toggle('selected', source.id === current);
+    item.addEventListener('click', () => {
+      window.silisten.post('/config', { input_device: source.id });
+      closeMenu();
+    });
+    menu.append(item);
+  }
+}
+
+function closeMenu() {
+  const wasOpen = openMenuId !== null;
+  for (const menu of Object.values(menus)) {
+    menu.hidden = true;
+  }
+  document.querySelectorAll('.lang-button').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+  openMenuId = null;
+  if (wasOpen) {
+    requestAnimationFrame(() => window.silisten.layout(Math.ceil(notch.getBoundingClientRect().height) + 30));
+  }
+}
+
+async function toggleMenu(button) {
+  const id = button.dataset.menu;
+  if (openMenuId === id) {
+    closeMenu();
+    return;
+  }
+  closeMenu();
+  if (id === 'input-menu') await buildInputMenu();
+  const menu = menus[id];
+  button.parentElement.prepend(menu);
+  menu.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  openMenuId = id;
+  await fitMenu(menu, button);
+  const selected = menu.querySelector('.selected');
+  if (selected) selected.scrollIntoView({ block: 'center' });
+}
+
+let containerHeight = 0;
+
+async function fitMenu(menu, button) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const rect = menu.getBoundingClientRect();
+    if (rect.top >= 8) return;
+    const deficit = Math.ceil(8 - rect.top);
+    const target = Math.min(720, window.innerHeight + deficit);
+    if (target <= window.innerHeight) return;
+    window.silisten.layout(target);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
+}
+
+for (const button of document.querySelectorAll('.lang-button')) {
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleMenu(button);
+  });
+}
+
+document.addEventListener('click', (event) => {
+  if (!openMenuId) return;
+  if (!event.target.closest('.lang-button') && !event.target.closest('.language-menu')) closeMenu();
 });
 
 function syncLanguage() {
   if (!state) return;
+  const inputs = document.querySelectorAll('.lang-button');
+  for (const button of inputs) {
+    if (button.dataset.menu !== 'input-menu') continue;
+    const current = state.config.input_device || 'default';
+    const label = button.querySelector('span');
+    if (inputLabels[current]) {
+      label.textContent = inputLabels[current];
+    } else if (current === 'default') {
+      label.textContent = 'Default mic';
+    } else {
+      label.textContent = 'Microphone';
+      refreshInputLabel(current, label);
+    }
+  }
   const current = state.config.language || '';
-  if (quickLanguage.value !== current) quickLanguage.value = current;
+  const entry = LANGUAGES.find(([value]) => value === current);
+  const text = entry ? entry[1] : current.toUpperCase();
+  document.querySelectorAll('.lang-button[data-menu="language-menu"] span').forEach((span) => (span.textContent = text));
+  for (const item of menus['language-menu'].children) {
+    item.classList.toggle('selected', item.dataset.value === current);
+  }
 }
 
 $('gear').addEventListener('click', () => (settingsOpen ? closeSettings() : openSettings()));
@@ -246,6 +442,10 @@ $('copy').addEventListener('click', async () => {
   }, 800);
 });
 
+$('stop').addEventListener('click', () => {
+  window.silisten.post('/record/stop', {});
+});
+
 $('more').addEventListener('click', () => {
   window.silisten.post('/record/start', { append: true });
 });
@@ -258,6 +458,10 @@ $('file').addEventListener('click', async () => {
 
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
+  if (openMenuId) {
+    closeMenu();
+    return;
+  }
   if (settingsOpen) closeSettings();
   else window.silisten.hide();
 });
@@ -282,9 +486,11 @@ window.addEventListener('drop', (event) => {
 
 let reportedHeight = 0;
 new ResizeObserver(() => {
+  if (openMenuId) return;
   const height = Math.ceil(notch.getBoundingClientRect().height) + 30;
   if (Math.abs(height - reportedHeight) < 2) return;
   reportedHeight = height;
+  containerHeight = height;
   window.silisten.layout(height);
 }).observe(notch);
 
@@ -320,7 +526,9 @@ function drawEqualizer() {
     eqCtx.roundRect(x, middle - barHeight / 2, barWidth, barHeight, barWidth / 2);
     eqCtx.fill();
   }
-  requestAnimationFrame(drawEqualizer);
+  buildLanguageMenu();
+requestAnimationFrame(drawEqualizer);
 }
 
+buildLanguageMenu();
 requestAnimationFrame(drawEqualizer);

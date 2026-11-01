@@ -107,20 +107,24 @@ def _already_running():
 
 
 def cmd_start(_args):
-    if _already_running():
-        print("silisten is already running", file=sys.stderr)
-        return 1
-    cfg, httpd = _boot()
+    cfg = config.load()
+    owns_backend = not _already_running()
+    if owns_backend:
+        cfg, httpd = _boot()
     electron = ROOT / "ui" / "node_modules" / ".bin" / "electron"
     if not electron.exists():
         print("electron is not installed - run ./install.sh", file=sys.stderr)
-        httpd.shutdown()
+        if owns_backend:
+            httpd.shutdown()
         return 1
     env = dict(os.environ)
     env["SILISTEN_URL"] = f"http://127.0.0.1:{cfg['port']}"
     env["SILISTEN_TOKEN"] = config.token()
+    args = [str(electron), ".", "--ozone-platform=x11"]
+    if os.environ.get("SILISTEN_DEBUG_PORT"):
+        args.append(f"--remote-debugging-port={os.environ['SILISTEN_DEBUG_PORT']}")
     proc = subprocess.Popen(
-        [str(electron), ".", "--ozone-platform=x11"], cwd=str(ROOT / "ui"), env=env,
+        args, cwd=str(ROOT / "ui"), env=env,
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
@@ -129,7 +133,8 @@ def cmd_start(_args):
     except KeyboardInterrupt:
         proc.terminate()
     finally:
-        httpd.shutdown()
+        if owns_backend:
+            httpd.shutdown()
     return 0
 
 

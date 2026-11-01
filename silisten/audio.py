@@ -1,3 +1,4 @@
+import json
 import subprocess
 import threading
 
@@ -63,18 +64,28 @@ class Recorder:
     def _arecord(device):
         return ["arecord", "-q", "-D", device, "-f", "S16_LE", "-r", str(RATE), "-c", "1", "-t", "raw"]
 
-    @staticmethod
-    def _pw_record():
-        return ["pw-record", "--rate", str(RATE), "--channels", "1", "--format", "s16", "-"]
+    def _pw_record(self, target=None):
+        cmd = ["pw-record", "--rate", str(RATE), "--channels", "1", "--format", "s16"]
+        if target is not None:
+            cmd += ["--target", str(target)]
+        return cmd + ["-"]
+
+    def _candidates(self):
+        if not self.device or self.device == "default":
+            return [self._arecord("default"), self._pw_record()]
+        candidates = []
+        node = next((s["node"] for s in list_sources() if s["id"] == self.device), None)
+        if node is not None:
+            candidates.append(self._pw_record(node))
+        candidates.append(self._pw_record(self.device))
+        return candidates
 
     def _spawn(self):
-        proc = subprocess.Popen(self._arecord(self.device), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        try:
-            proc.wait(timeout=0.6)
-        except subprocess.TimeoutExpired:
-            return proc
-        for cmd in (self._pw_record(), self._arecord("default")):
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        for cmd in self._candidates():
+            try:
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            except OSError:
+                continue
             try:
                 proc.wait(timeout=0.6)
             except subprocess.TimeoutExpired:
@@ -100,6 +111,24 @@ class Recorder:
                 self._level = min(1.0, max(0.0, (rms - 0.008) * 9.0))
         if self._proc and self._proc.poll() not in (None, 0, -15):
             self.error = "recorder exited unexpectedly"
+
+
+def list_sources():
+    sources = []
+    try:
+        out = subprocess.run(["pw-dump"], capture_output=True, timeout=5)
+        for obj in json.loads(out.stdout):
+            props = (obj.get("info") or {}).get("props") or {}
+            if props.get("media.class") != "Audio/Source":
+                continue
+            name = props.get("node.name")
+            if not name or name.endswith(".monitor"):
+                continue
+            label = props.get("node.description") or props.get("device.description") or name
+            sources.append({"id": name, "label": label, "node": obj.get("id")})
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return sources
 
 
 def decode_file(path):

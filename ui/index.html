@@ -31,6 +31,30 @@
 
   <section id="pane-listening" class="pane">
     <p id="partial" class="partial">Speak whenever you're ready</p>
+    <div class="listening-bar">
+      <button id="stop" class="primary stop">Stop</button>
+      <div class="inline-language">
+        <button class="lang-button" data-menu="input-menu" aria-haspopup="listbox" aria-expanded="false">
+          <svg class="mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+            <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path>
+          </svg>
+          <span>Default mic</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M7 14l5-5 5 5"></path>
+          </svg>
+        </button>
+        <ul id="input-menu" class="language-menu" role="listbox" aria-label="Microphone" hidden></ul>
+      </div>
+      <div class="inline-language">
+        <button class="lang-button" data-menu="language-menu" aria-haspopup="listbox" aria-expanded="false">
+          <span>Auto</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M7 14l5-5 5 5"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
   </section>
 
   <section id="pane-working" class="pane">
@@ -44,12 +68,15 @@
       <button id="copy" class="primary">Copy all</button>
       <button id="more" class="secondary">Talk more</button>
       <button id="file" class="secondary">Upload file</button>
-      <label class="inline-language" title="Recognition language">
-        <select id="quick-language" aria-label="Language"></select>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M7 10l5 5 5-5"></path>
-        </svg>
-      </label>
+      <div class="inline-language">
+        <button class="lang-button" data-menu="language-menu" aria-haspopup="listbox" aria-expanded="false">
+          <span>Auto</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M7 14l5-5 5 5"></path>
+          </svg>
+        </button>
+        <ul id="language-menu" class="language-menu" role="listbox" aria-label="Recognition language" hidden></ul>
+      </div>
       <span id="stats" class="stats"></span>
     </footer>
   </section>

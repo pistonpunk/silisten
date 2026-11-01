@@ -263,6 +263,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(self.app.snapshot())
         if self.path == "/config":
             return self._send(self.app.cfg)
+        if self.path == "/sources":
+            return self._send(audio.list_sources())
         if self.path == "/quit":
             threading.Thread(target=self.server.shutdown, daemon=True).start()
             return self._send({"ok": True})

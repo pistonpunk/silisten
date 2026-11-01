@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
-cd "$(dirname "$0")/.."
-exec .venv/bin/python -m silisten "$@"
+SELF="$(readlink -f "$0")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
+cd "$ROOT" || exit 1
+exec "$ROOT/.venv/bin/python" -m silisten "$@"
