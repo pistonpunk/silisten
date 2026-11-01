@@ -105,7 +105,16 @@ class App:
                     self.phase = ""
                     self.reveal += 1
                 return
-            data = audio.trim_silence(data)
+            spans = self.engine.speech_spans(data)
+            if spans is not None:
+                if not spans:
+                    self.commit([])
+                    return
+                start = max(0, spans[0][0] - int(0.15 * audio.RATE))
+                end = min(data.size, spans[-1][1] + int(0.15 * audio.RATE))
+                data = data[start:end]
+            else:
+                data = audio.trim_silence(data)
             result = self.engine.transcribe(
                 data, language=self.cfg.get("language"), long_form=data.size > 29 * audio.RATE
             )

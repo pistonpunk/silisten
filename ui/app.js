@@ -98,7 +98,7 @@ function renderTranscript(s) {
   if (!s.text) {
     const p = document.createElement('p');
     p.className = 'empty';
-    p.textContent = 'Nothing heard.';
+    p.textContent = 'No speech detected.';
     el.append(p);
     return;
   }

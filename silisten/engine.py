@@ -11,6 +11,10 @@ RATE = 16000
 
 SEGMENTATION_FILE = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
 EMBEDDING_FILE = "emb.onnx"
+VAD_FILE = "silero_vad.onnx"
+
+GAP = 0.4
+MIN_SPEECH = 0.25
 
 
 class Diarizer:
@@ -64,6 +68,26 @@ class Diarizer:
         return [(float(s.start), float(s.end), str(s.speaker)) for s in result.sort_by_start_time()]
 
 
+def _load_vad(cfg):
+    path = Path(cfg.get("diarization_dir") or config.MODELS_DIR) / VAD_FILE
+    if not path.is_file():
+        return None
+    try:
+        import sherpa_onnx
+
+        vad_config = sherpa_onnx.VadModelConfig()
+        vad_config.silero_vad.model = str(path)
+        vad_config.silero_vad.threshold = float(cfg.get("vad_threshold", 0.5))
+        vad_config.silero_vad.min_silence_duration = 0.35
+        vad_config.silero_vad.min_speech_duration = MIN_SPEECH
+        vad_config.silero_vad.max_speech_duration = 30
+        vad_config.sample_rate = RATE
+        vad_config.num_threads = 2
+        return sherpa_onnx.VadModel.create(vad_config)
+    except Exception:
+        return None
+
+
 class Engine:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -74,6 +98,7 @@ class Engine:
         self._pipe = None
         self._lock = threading.Lock()
         self._load_lock = threading.Lock()
+        self.vad = _load_vad(cfg)
         self.diar = Diarizer(cfg)
 
     def warm(self):
@@ -111,6 +136,31 @@ class Engine:
         if self._pipe is None:
             raise RuntimeError(self.error or "speech model failed to load")
 
+    def speech_spans(self, waveform):
+        if self.vad is None:
+            return None
+        vad = self.vad
+        window = vad.window_size()
+        with self._lock:
+            vad.reset()
+            spans, start = [], None
+            for offset in range(0, waveform.size - window + 1, window):
+                speech = vad.is_speech(waveform[offset: offset + window])
+                if speech and start is None:
+                    start = offset
+                elif not speech and start is not None:
+                    spans.append((start, offset))
+                    start = None
+            if start is not None:
+                spans.append((start, waveform.size))
+        merged = []
+        for begin, end in spans:
+            if merged and begin - merged[-1][1] < GAP * RATE:
+                merged[-1] = (merged[-1][0], end)
+            else:
+                merged.append((begin, end))
+        return [(a, b) for a, b in merged if b - a >= MIN_SPEECH * RATE]
+
     def transcribe(self, waveform, language=None, long_form=False):
         if waveform.size == 0:
             return {"text": "", "segments": []}
@@ -124,6 +174,9 @@ class Engine:
         if long_form:
             kwargs["chunk_length_s"] = 30
             kwargs["batch_size"] = 8
+        spans = self.speech_spans(waveform)
+        if spans is not None and not spans:
+            return {"text": "", "segments": [], "silent": True}
         with self._lock, torch.inference_mode():
             out = self._pipe(waveform, **kwargs)
         duration = waveform.size / RATE
@@ -135,6 +188,13 @@ class Engine:
         segments = []
         for i in range(total):
             part = waveform[i * window:(i + 1) * window]
+            spans = self.speech_spans(part)
+            if spans is not None:
+                if not spans:
+                    if progress:
+                        progress((i + 1) / total)
+                    continue
+                part = part[max(0, spans[0][0] - int(0.15 * RATE)): min(part.size, spans[-1][1] + int(0.15 * RATE))]
             result = self.transcribe(part, language=language, long_form=True)
             offset = i * window / RATE
             for seg in result["segments"]:
