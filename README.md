@@ -46,7 +46,7 @@ It runs `silisten toggle`.
 
 ```json
 {
-  "shortcut": "Shift+Tab+Q",
+  "shortcut": "Ctrl+Delete",
   "language": null,
   "input_device": "default",
   "model": "openai/whisper-large-v3",
