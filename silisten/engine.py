@@ -73,6 +73,7 @@ class Engine:
         self.using_gpu = False
         self._pipe = None
         self._lock = threading.Lock()
+        self._load_lock = threading.Lock()
         self.diar = Diarizer(cfg)
 
     def warm(self):
@@ -101,9 +102,19 @@ class Engine:
         if self.cfg.get("diarize"):
             self.diar.load()
 
+    def ensure_ready(self):
+        if self._pipe is not None:
+            return
+        with self._load_lock:
+            if self._pipe is None:
+                self.load()
+        if self._pipe is None:
+            raise RuntimeError(self.error or "speech model failed to load")
+
     def transcribe(self, waveform, language=None, long_form=False):
         if waveform.size == 0:
             return {"text": "", "segments": []}
+        self.ensure_ready()
         kwargs = {"return_timestamps": True}
         gen = {}
         if language:

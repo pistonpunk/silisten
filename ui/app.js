@@ -493,21 +493,11 @@ window.addEventListener('drop', (event) => {
 let reportedHeight = 0;
 const MENU_HEADROOM = 300;
 
-let pointerInside = null;
-document.addEventListener('mousemove', (event) => {
-  const inside = Boolean(
-    event.target.closest && (event.target.closest('#notch') || event.target.closest('.language-menu'))
-  );
-  if (inside === pointerInside) return;
-  pointerInside = inside;
-  window.silisten.hit(inside);
-});
 
 new ResizeObserver(() => {
   const height = Math.ceil(notch.getBoundingClientRect().height) + MENU_HEADROOM;
   if (Math.abs(height - reportedHeight) < 2) return;
   reportedHeight = height;
-  containerHeight = height;
   window.silisten.layout(height);
 }).observe(notch);
 

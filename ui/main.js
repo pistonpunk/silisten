@@ -104,11 +104,6 @@ ipcMain.handle('api', async (_e, { path: route, body }) => {
 });
 
 ipcMain.on('hide', () => { if (win) win.hide(); });
-
-ipcMain.on('hit', (_e, inside) => {
-  if (!win) return;
-  win.setIgnoreMouseEvents(!inside, { forward: true });
-});
 ipcMain.handle('copy', (_e, text) => { clipboard.writeText(String(text || '')); return true; });
 
 ipcMain.handle('pick-file', async () => {
