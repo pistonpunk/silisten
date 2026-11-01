@@ -16,6 +16,8 @@ DEFAULTS = {
     "input_device": "default",
     "model": "openai/whisper-large-v3",
     "diarize": True,
+    "auto_stop": True,
+    "auto_stop_seconds": 1.6,
     "diarization_dir": None,
     "diarization_threshold": 0.7,
     "port": 8756,

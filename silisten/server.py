@@ -28,6 +28,7 @@ class App:
         self.duration = 0.0
         self._last_partial_bytes = -1
         self._partial_busy = False
+        self._heard_speech = False
 
     def boot(self):
         self.engine.warm()
@@ -51,6 +52,7 @@ class App:
                 self.segments = []
             self.partial = ""
             self.duration = 0.0
+            self._heard_speech = False
             self.status = "listening"
             self.reveal += 1
             self._last_partial_bytes = -1
@@ -71,6 +73,16 @@ class App:
         self.duration = data.size / audio.RATE
         threading.Thread(target=self._finish_listening, args=(data,), daemon=True).start()
 
+    def _maybe_auto_stop(self, recorder, data, spans):
+        if not self.cfg.get("auto_stop", True) or not self._heard_speech:
+            return
+        if self._partial_busy or recorder.duration < 0.5:
+            return
+        pause = float(self.cfg.get("auto_stop_seconds", 1.6)) * audio.RATE
+        trailing = data.size - spans[-1][1] if spans else data.size
+        if trailing >= pause:
+            self.stop_recording()
+
     def _partial_loop(self, recorder):
         while not self._stop_partials(recorder):
             time.sleep(1.1)
@@ -84,10 +96,21 @@ class App:
             data = recorder.audio()
             self._partial_busy = True
             try:
+                spans = self.engine.speech_spans(data)
+                if spans:
+                    self._heard_speech = True
+                self._maybe_auto_stop(recorder, data, spans)
+                if not spans:
+                    self._last_partial_bytes = -1
+                    continue
+                data = data[max(0, spans[0][0] - int(0.15 * audio.RATE)):]
                 result = self.engine.transcribe(data, language=self.cfg.get("language"))
+                text = result["text"]
+                if not text:
+                    continue
                 with self.lock:
                     if self.status == "listening":
-                        self.partial = result["text"]
+                        self.partial = text
                         self.duration = recorder.duration
             except Exception:
                 pass
@@ -205,7 +228,7 @@ class App:
             self.duration = 0.0
 
     def update_config(self, patch):
-        allowed = {"shortcut", "language", "diarize", "input_device", "diarization_threshold", "diarization_dir", "model"}
+        allowed = {"shortcut", "language", "diarize", "auto_stop", "auto_stop_seconds", "input_device", "diarization_threshold", "diarization_dir", "model"}
         changed = {k: v for k, v in patch.items() if k in allowed}
         if "language" in changed and changed["language"] in ("", "auto"):
             changed["language"] = None

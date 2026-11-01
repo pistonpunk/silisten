@@ -51,6 +51,8 @@ It runs `silisten toggle`.
   "input_device": "default",
   "model": "openai/whisper-large-v3",
   "diarize": true,
+  "auto_stop": true,
+  "auto_stop_seconds": 1.6,
   "diarization_dir": null,
   "diarization_threshold": 0.7,
   "port": 8756
@@ -58,6 +60,10 @@ It runs `silisten toggle`.
 ```
 
 `language: null` auto-detects. A recording runs through `arecord` (falls back to `pw-record`), files through `ffmpeg`.
+
+Recording stops by itself after `auto_stop_seconds` of silence, once you have actually said something. Set `auto_stop` to false to record until you press the key again.
+
+Silero VAD gates every transcription: if nothing is detected as speech, no text is produced. That is what stops Whisper inventing phrases from silence or background noise.
 
 ## Requirements
 
