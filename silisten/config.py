@@ -6,15 +6,18 @@ from pathlib import Path
 DIR = Path(os.environ.get("SILISTEN_CONFIG_DIR", Path.home() / ".config" / "silisten"))
 PATH = DIR / "config.json"
 TOKEN_PATH = DIR / "token"
+MODELS_DIR = Path(
+    os.environ.get("SILISTEN_MODELS_DIR", Path.home() / ".local" / "share" / "silisten" / "models")
+)
 
 DEFAULTS = {
-    "shortcut": "Shift+Tab+Q",
+    "shortcut": "Ctrl+Delete",
     "language": None,
     "input_device": "default",
     "model": "openai/whisper-large-v3",
-    "diarization_model": "pyannote/speaker-diarization-3.1",
     "diarize": True,
-    "hf_token": None,
+    "diarization_dir": None,
+    "diarization_threshold": 0.7,
     "port": 8756,
 }
 
@@ -50,17 +53,5 @@ def token():
     return tok
 
 
-def hf_token(cfg):
-    return (
-        cfg.get("hf_token")
-        or os.environ.get("HF_TOKEN")
-        or os.environ.get("HUGGING_FACE_HUB_TOKEN")
-        or _cached_hf_token()
-    )
-
-
-def _cached_hf_token():
-    try:
-        return (Path.home() / ".cache" / "huggingface" / "token").read_text().strip() or None
-    except OSError:
-        return None
+def models_dir():
+    return Path(MODELS_DIR)

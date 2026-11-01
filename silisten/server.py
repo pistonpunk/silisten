@@ -7,7 +7,6 @@ import numpy as np
 
 from . import audio, config
 from .engine import Engine, attach_speakers, compose
-from .hotkey import HotkeyListener, parse_chord
 
 
 class App:
@@ -27,25 +26,11 @@ class App:
         self.reveal = 0
         self.append = False
         self.duration = 0.0
-        self.hotkey = None
-        self.hotkey_error = ""
         self._last_partial_bytes = -1
         self._partial_busy = False
 
     def boot(self):
         self.engine.warm()
-        self.start_hotkey()
-
-    def start_hotkey(self):
-        if self.hotkey:
-            self.hotkey.stop()
-        try:
-            self.hotkey = HotkeyListener(self.cfg["shortcut"], self.toggle)
-            self.hotkey.start()
-            self.hotkey_error = ""
-        except ValueError as e:
-            self.hotkey = None
-            self.hotkey_error = str(e)
 
     def toggle(self):
         if self.status == "listening":
@@ -211,29 +196,21 @@ class App:
             self.duration = 0.0
 
     def update_config(self, patch):
-        allowed = {"shortcut", "language", "diarize", "input_device", "hf_token", "diarization_model", "model"}
+        allowed = {"shortcut", "language", "diarize", "input_device", "diarization_threshold", "diarization_dir", "model"}
         changed = {k: v for k, v in patch.items() if k in allowed}
-        if "shortcut" in changed:
-            try:
-                parse_chord(changed["shortcut"])
-            except ValueError as e:
-                return str(e)
         if "language" in changed and changed["language"] in ("", "auto"):
             changed["language"] = None
         if "diarize" in changed:
             changed["diarize"] = bool(changed["diarize"])
         self.cfg.update(changed)
         config.save(self.cfg)
-        if "shortcut" in changed:
-            self.start_hotkey()
-        if "hf_token" in changed or "diarization_model" in changed:
+        if "diarization_threshold" in changed or "diarization_dir" in changed:
             threading.Thread(target=self.engine.diar.load, daemon=True).start()
         return None
 
     def snapshot(self):
         with self.lock:
             recorder = self.recorder
-            hotkey = self.hotkey
             return {
                 "status": self.status,
                 "text": self.text,
@@ -254,10 +231,6 @@ class App:
                     "error": self.engine.error,
                 },
                 "diarizer": {"state": self.engine.diar.state, "error": self.engine.diar.error},
-                "hotkey": {
-                    "status": "error" if self.hotkey_error else (hotkey.status if hotkey else "error"),
-                    "reason": self.hotkey_error or (hotkey.reason if hotkey else ""),
-                },
                 "config": {
                     "language": self.cfg.get("language"),
                     "diarize": self.cfg.get("diarize"),

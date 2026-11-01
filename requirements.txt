@@ -7,4 +7,4 @@ transformers>=4.48
 safetensors
 numpy
 huggingface_hub
-pyannote.audio>=3.1
+sherpa-onnx>=1.12

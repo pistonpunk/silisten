@@ -29,6 +29,7 @@ window.silisten.onOffline(() => {
 
 function render(s) {
   state = s;
+  syncLanguage();
   document.documentElement.style.setProperty(
     '--level',
     (s.status === 'listening' ? Math.min(1, s.level || 0) : 0).toFixed(3)
@@ -138,13 +139,10 @@ function renderHealth(s) {
       : s.diarizer.state === 'idle'
         ? 'off'
         : `<span class="bad">${escapeHtml(s.diarizer.error || 'failed')}</span>`;
-  const shortcut = s.hotkey.status === 'ok'
-    ? `listening for ${escapeHtml(s.shortcut)}`
-    : `<span class="bad">${escapeHtml(s.hotkey.reason || 'unavailable')}</span>`;
   $('health').innerHTML = [
     `<b>Model</b> ${model}`,
     `<b>Speakers</b> ${speakers}`,
-    `<b>Shortcut</b> ${shortcut}`
+    `<b>Shortcut</b> ${escapeHtml(s.shortcut)} (set it in GNOME Settings › Keyboard)`
   ].join('<br>');
 }
 
@@ -156,12 +154,9 @@ function openSettings() {
   $('timer').textContent = '';
   $('settings-note').textContent = '';
   if (state) {
-    $('shortcut').value = state.shortcut || '';
-    $('language').value = state.config.language || '';
     $('diarize').checked = Boolean(state.config.diarize);
     renderHealth(state);
   }
-  setTimeout(() => $('shortcut').focus(), 40);
 }
 
 function closeSettings() {
@@ -183,14 +178,51 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
+const LANGUAGES = [
+  ['', 'Auto'],
+  ['en', 'English'],
+  ['de', 'German'],
+  ['fr', 'French'],
+  ['es', 'Spanish'],
+  ['it', 'Italian'],
+  ['pt', 'Portuguese'],
+  ['nl', 'Dutch'],
+  ['pl', 'Polish'],
+  ['ru', 'Russian'],
+  ['uk', 'Ukrainian'],
+  ['tr', 'Turkish'],
+  ['ar', 'Arabic'],
+  ['hi', 'Hindi'],
+  ['ja', 'Japanese'],
+  ['ko', 'Korean'],
+  ['zh', 'Chinese']
+];
+
+const quickLanguage = $('quick-language');
+for (const [value, label] of LANGUAGES) {
+  const option = document.createElement('option');
+  option.value = value;
+  option.textContent = label;
+  quickLanguage.append(option);
+}
+
+quickLanguage.addEventListener('change', () => {
+  window.silisten.post('/config', { language: quickLanguage.value });
+  quickLanguage.blur();
+});
+
+function syncLanguage() {
+  if (!state) return;
+  const current = state.config.language || '';
+  if (quickLanguage.value !== current) quickLanguage.value = current;
+}
+
 $('gear').addEventListener('click', () => (settingsOpen ? closeSettings() : openSettings()));
 $('close').addEventListener('click', () => window.silisten.hide());
 $('cancel').addEventListener('click', closeSettings);
 
 $('save').addEventListener('click', async () => {
   const response = await window.silisten.post('/config', {
-    shortcut: $('shortcut').value.trim(),
-    language: $('language').value,
     diarize: $('diarize').checked
   });
   if (response && response.error) {

@@ -13,12 +13,11 @@ if [ ! -x .venv/bin/python ]; then
   python3 -m venv .venv
 fi
 .venv/bin/python -m pip install -q -U pip
-echo "-- python deps (torch ROCm wheels are ~200 MB + libraries)"
+echo "-- python deps (ROCm torch wheels are a few hundred MB)"
 .venv/bin/python -m pip install -r requirements.txt
 
 echo "-- electron"
 (cd ui && npm install --silent)
 
 chmod +x bin/silisten
-
 exec .venv/bin/python -m silisten setup "$@"

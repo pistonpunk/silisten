@@ -11,40 +11,34 @@ cd ~/Work/Silisten
 ./install.sh
 ```
 
-`install.sh` creates the venv, installs the ROCm torch wheels, fetches whisper-large-v3 (~3 GB), installs Electron, adds the udev rule that lets the app read the keyboard, and registers autostart.
+`install.sh` creates the venv, installs the ROCm torch wheels and sherpa-onnx, fetches whisper-large-v3 (~3 GB) and the diarization models, installs Electron, links the `silisten` command, and adds the GNOME shortcut.
 
-Start it: `bin/silisten start` (or just log out and back in — it autostarts).
-
-## Speaker diarization (needs your token)
-
-The weights are gated. Without a token everything else works and speakers are simply not labelled.
-
-1. Create a read token: <https://huggingface.co/settings/tokens>
-2. Accept the terms on both pages:
-   - <https://huggingface.co/pyannote/speaker-diarization-3.1>
-   - <https://huggingface.co/pyannote/segmentation-3.0>
-3. Save it:
-
-```bash
-bin/silisten config --set hf_token=hf_xxxxxxxxxxxxxxxx
-```
-
-Restart the app. Settings → Speakers should say ready.
+Start it with `silisten start`, or press the shortcut. Right now it starts on demand; add the app menu entry to your GNOME autostart if you want it always running.
 
 ## Use
 
-- **Shift+Tab+Q** — start listening, press again to stop. Change it in Settings (any chord, e.g. `Ctrl+Alt+Space`).
+- **Shift+Tab+Q** — start listening, press again to stop. If the app isn't running, the shortcut starts it.
 - **Copy all** — puts the whole transcript on the clipboard and hides the notch.
 - **Talk more** — records again and appends to the same transcript.
 - **Upload file** — pick an audio or video file. Drag and drop onto the notch works too.
 - **Esc** — hide the notch.
 
-## Models
+## Changing the shortcut
 
-- Speech: `openai/whisper-large-v3`, fp16 on the GPU, full precision — not quantized.
-- Speakers: `pyannote/speaker-diarization-3.1`.
+The binding lives in GNOME, not in the app. Change it anywhere you like:
 
-Change them in `~/.config/silisten/config.json` (`model`, `diarization_model`) or the Settings panel.
+- GNOME Settings › Keyboard › Custom Shortcuts › **Silisten**
+- or `silisten shortcut "Ctrl+Alt+Space"` from a terminal
+- or via `gsettings`
+
+It runs `silisten toggle`.
+
+## Models — all local, no tokens, no accounts
+
+- Speech: `openai/whisper-large-v3`, fp16 on the GPU, full precision — not quantized. Downloaded once from Hugging Face into the local cache.
+- Speakers: sherpa-onnx running pyannote segmentation-3.0 + WeSpeaker CAM++ embeddings on CPU. Small ONNX models in `~/.local/share/silisten/models/`, married to nothing and used offline. Diarizing a minute of audio takes about a second.
+
+`diarization_threshold` in the config controls how eagerly voices are merged into one speaker — raise it if one person splits into several, lower it if two people merge.
 
 ## Config
 
@@ -56,9 +50,9 @@ Change them in `~/.config/silisten/config.json` (`model`, `diarization_model`) o
   "language": null,
   "input_device": "default",
   "model": "openai/whisper-large-v3",
-  "diarization_model": "pyannote/speaker-diarization-3.1",
   "diarize": true,
-  "hf_token": null,
+  "diarization_dir": null,
+  "diarization_threshold": 0.7,
   "port": 8756
 }
 ```
@@ -75,8 +69,8 @@ The backend listens on `127.0.0.1:8756` and requires the token in `~/.config/sil
 
 ## Troubleshooting
 
-**Shortcut does nothing** — Settings → Shortcut shows the reason. If it says access denied, `./install.sh` didn't finish or you haven't logged out since it ran.
+**Shortcut does nothing** — check the binding with `gsettings get org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/silisten/ binding`. Re-apply with `silisten shortcut "Shift+Tab+Q"`.
 
 **Model failed** — Settings shows the error. Usually missing ROCm drivers or no disk space for the weights.
 
-**Speakers never labelled** — no token, see above.
+**Speakers never labelled** — Settings shows the reason. If the models are missing, `./install.sh` re-downloads them. If one voice splits into many, raise `diarization_threshold`.

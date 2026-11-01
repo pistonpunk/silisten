@@ -1,4 +1,5 @@
 import threading
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -6,6 +7,10 @@ import torch
 from . import config
 
 RATE = 16000
+
+
+SEGMENTATION_FILE = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
+EMBEDDING_FILE = "emb.onnx"
 
 
 class Diarizer:
@@ -16,19 +21,34 @@ class Diarizer:
         self.error = None
         self._lock = threading.Lock()
 
+    def model_dir(self):
+        return Path(self.cfg.get("diarization_dir") or config.MODELS_DIR)
+
     def load(self):
-        token = config.hf_token(self.cfg)
-        if not token:
+        base = self.model_dir()
+        segmentation = base / SEGMENTATION_FILE
+        embedding = base / EMBEDDING_FILE
+        missing = [p.name for p in (segmentation, embedding) if not p.is_file()]
+        if missing:
             self.state = "unavailable"
-            self.error = "No Hugging Face token. Run: silisten setup"
+            self.error = f"missing local models in {base}: {', '.join(missing)} - run: silisten setup"
             return
         try:
-            from pyannote.audio import Pipeline
+            import sherpa_onnx
 
-            pipe = Pipeline.from_pretrained(self.cfg["diarization_model"], token=token)
-            if torch.cuda.is_available():
-                pipe.to(torch.device("cuda"))
-            self.pipe = pipe
+            segmentation_config = sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
+                pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(model=str(segmentation)),
+                num_threads=4,
+            )
+            embedding_config = sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=str(embedding), num_threads=4)
+            clustering = sherpa_onnx.FastClusteringConfig(
+                num_clusters=-1, threshold=float(self.cfg.get("diarization_threshold", 0.7))
+            )
+            self.pipe = sherpa_onnx.OfflineSpeakerDiarization(
+                sherpa_onnx.OfflineSpeakerDiarizationConfig(
+                    segmentation=segmentation_config, embedding=embedding_config, clustering=clustering
+                )
+            )
             self.state = "ready"
             self.error = None
         except Exception as e:
@@ -38,11 +58,10 @@ class Diarizer:
     def turns(self, waveform):
         if not self.pipe or waveform.size < RATE:
             return []
-        wav = torch.from_numpy(np.ascontiguousarray(waveform)).unsqueeze(0)
-        with self._lock, torch.inference_mode():
-            out = self.pipe({"waveform": wav, "sample_rate": RATE})
-        annotation = getattr(out, "speaker_diarization", out)
-        return [(float(t.start), float(t.end), str(label)) for t, _, label in annotation.itertracks(yield_label=True)]
+        audio = np.ascontiguousarray(waveform, dtype=np.float32)
+        with self._lock:
+            result = self.pipe.process(audio)
+        return [(float(s.start), float(s.end), str(s.speaker)) for s in result.sort_by_start_time()]
 
 
 class Engine:

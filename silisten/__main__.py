@@ -29,10 +29,47 @@ def api(path, payload=None, timeout=15):
 
 
 def cmd_toggle(_args):
-    try:
-        api("/toggle", {})
-    except (urllib.error.URLError, OSError):
-        print("silisten is not running (start it with: silisten start)", file=sys.stderr)
+    if not _already_running():
+        _spawn("start")
+        for _ in range(120):
+            time.sleep(0.5)
+            if _already_running():
+                break
+        else:
+            print("silisten did not start", file=sys.stderr)
+            return 1
+    for _ in range(40):
+        try:
+            state = api("/toggle", {}, timeout=20)
+        except (urllib.error.URLError, OSError):
+            time.sleep(0.25)
+            continue
+        if state.get("status") == "thinking" or state.get("reveal"):
+            return 0
+    return 0
+
+
+def _spawn(command):
+    env = dict(os.environ)
+    subprocess.Popen(
+        [sys.executable, "-m", "silisten", command],
+        cwd=str(ROOT),
+        env={**env, "PYTHONPATH": str(ROOT)},
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+def cmd_shortcut(args):
+    from . import setup
+
+    cfg = config.load()
+    if args.chord:
+        cfg["shortcut"] = args.chord.strip()
+        config.save(cfg)
+    if not setup.gnome_shortcut(cfg["shortcut"]):
         return 1
     return 0
 
@@ -84,7 +121,8 @@ def cmd_start(_args):
     env["SILISTEN_TOKEN"] = config.token()
     proc = subprocess.Popen(
         [str(electron), ".", "--ozone-platform=x11"], cwd=str(ROOT / "ui"), env=env,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
     try:
         proc.wait()
@@ -123,7 +161,9 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("start", help="run backend + notch UI")
     sub.add_parser("backend", help="run backend only")
-    sub.add_parser("toggle", help="start/stop listening (bind this to a desktop shortcut)")
+    sub.add_parser("toggle", help="start/stop listening; launches the app if needed")
+    shortcut_parser = sub.add_parser("shortcut", help="bind the GNOME shortcut")
+    shortcut_parser.add_argument("chord", nargs="?", help="e.g. 'Shift+Tab+Q'")
     setup_parser = sub.add_parser("setup", help="install input rule, autostart and models")
     setup_parser.add_argument("--hf-token", dest="hf_token")
     setup_parser.add_argument("--no-prefetch", action="store_true")
@@ -137,6 +177,8 @@ def main(argv=None):
         return cmd_backend(args)
     if command == "toggle":
         return cmd_toggle(args)
+    if command == "shortcut":
+        return cmd_shortcut(args)
     if command == "setup":
         return cmd_setup(args)
     if command == "config":

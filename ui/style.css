@@ -335,6 +335,47 @@ select:focus-visible {
   background: var(--pill-hover);
 }
 
+.inline-language {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.inline-language select {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 28px 10px 15px;
+  background: var(--pill);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.inline-language select:hover {
+  background: var(--pill-hover);
+  color: var(--text);
+}
+
+.inline-language select option {
+  background: #141416;
+  color: var(--text);
+}
+
+.inline-language svg {
+  position: absolute;
+  right: 11px;
+  width: 13px;
+  height: 13px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
 .stats {
   margin-left: auto;
   font-size: 14px;
@@ -381,8 +422,7 @@ select:focus-visible {
   color: var(--text-2);
 }
 
-.settings input[type="text"],
-.settings select {
+.settings input[type="text"] {
   width: 240px;
   padding: 9px 13px;
   border-radius: 11px;
@@ -393,13 +433,8 @@ select:focus-visible {
   font-size: 15px;
 }
 
-.settings input[type="text"]:hover,
-.settings select:hover {
+.settings input[type="text"]:hover {
   background: rgba(255, 255, 255, 0.1);
-}
-
-.settings select option {
-  background: #1a1a1c;
 }
 
 .check {
