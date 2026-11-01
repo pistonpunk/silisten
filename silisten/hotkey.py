@@ -42,8 +42,8 @@ def parse_chord(chord):
     parts = [p.strip().lower() for p in chord.replace(" ", "").split("+") if p.strip()]
     if not parts:
         raise ValueError("empty shortcut")
-    if len(parts) > 4:
-        raise ValueError("at most 4 keys in a shortcut")
+    if len(parts) > 5:
+        raise ValueError("at most 4 modifiers plus a key")
     requirements = []
     for part in parts[:-1]:
         if part in FAMILY:

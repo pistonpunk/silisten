@@ -48,6 +48,9 @@ def _boot():
 
 
 def cmd_backend(_args):
+    if _already_running():
+        print("silisten backend is already running", file=sys.stderr)
+        return 1
     cfg, httpd = _boot()
     print(f"silisten backend on 127.0.0.1:{cfg['port']}  shortcut {cfg['shortcut']}", flush=True)
     try:
@@ -58,7 +61,18 @@ def cmd_backend(_args):
     return 0
 
 
+def _already_running():
+    try:
+        api("/state", timeout=2)
+        return True
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
 def cmd_start(_args):
+    if _already_running():
+        print("silisten is already running", file=sys.stderr)
+        return 1
     cfg, httpd = _boot()
     electron = ROOT / "ui" / "node_modules" / ".bin" / "electron"
     if not electron.exists():
