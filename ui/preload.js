@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('silisten', {
   post: (route, body) => ipcRenderer.invoke('api', { path: route, body }),
   get: (route) => ipcRenderer.invoke('api', { path: route }),
   hide: () => ipcRenderer.send('hide'),
+  hit: (inside) => ipcRenderer.send('hit', inside),
   copy: (text) => ipcRenderer.invoke('copy', text),
   pickFile: () => ipcRenderer.invoke('pick-file'),
   pathFor: (file) => webUtils.getPathForFile(file),

@@ -333,15 +333,11 @@ async function buildInputMenu() {
 }
 
 function closeMenu() {
-  const wasOpen = openMenuId !== null;
   for (const menu of Object.values(menus)) {
     menu.hidden = true;
   }
   document.querySelectorAll('.lang-button').forEach((b) => b.setAttribute('aria-expanded', 'false'));
   openMenuId = null;
-  if (wasOpen) {
-    requestAnimationFrame(() => window.silisten.layout(Math.ceil(notch.getBoundingClientRect().height) + 30));
-  }
 }
 
 async function toggleMenu(button) {
@@ -357,23 +353,33 @@ async function toggleMenu(button) {
   menu.hidden = false;
   button.setAttribute('aria-expanded', 'true');
   openMenuId = id;
-  await fitMenu(menu, button);
   const selected = menu.querySelector('.selected');
   if (selected) selected.scrollIntoView({ block: 'center' });
 }
 
-let containerHeight = 0;
-
-async function fitMenu(menu, button) {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const rect = menu.getBoundingClientRect();
-    if (rect.top >= 8) return;
-    const deficit = Math.ceil(8 - rect.top);
-    const target = Math.min(720, window.innerHeight + deficit);
-    if (target <= window.innerHeight) return;
-    window.silisten.layout(target);
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+function closeMenu() {
+  for (const menu of Object.values(menus)) {
+    menu.hidden = true;
   }
+  document.querySelectorAll('.lang-button').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+  openMenuId = null;
+}
+
+async function toggleMenu(button) {
+  const id = button.dataset.menu;
+  if (openMenuId === id) {
+    closeMenu();
+    return;
+  }
+  closeMenu();
+  if (id === 'input-menu') await buildInputMenu();
+  const menu = menus[id];
+  button.parentElement.prepend(menu);
+  menu.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  openMenuId = id;
+  const selected = menu.querySelector('.selected');
+  if (selected) selected.scrollIntoView({ block: 'center' });
 }
 
 for (const button of document.querySelectorAll('.lang-button')) {
@@ -485,9 +491,20 @@ window.addEventListener('drop', (event) => {
 });
 
 let reportedHeight = 0;
+const MENU_HEADROOM = 300;
+
+let pointerInside = null;
+document.addEventListener('mousemove', (event) => {
+  const inside = Boolean(
+    event.target.closest && (event.target.closest('#notch') || event.target.closest('.language-menu'))
+  );
+  if (inside === pointerInside) return;
+  pointerInside = inside;
+  window.silisten.hit(inside);
+});
+
 new ResizeObserver(() => {
-  if (openMenuId) return;
-  const height = Math.ceil(notch.getBoundingClientRect().height) + 30;
+  const height = Math.ceil(notch.getBoundingClientRect().height) + MENU_HEADROOM;
   if (Math.abs(height - reportedHeight) < 2) return;
   reportedHeight = height;
   containerHeight = height;

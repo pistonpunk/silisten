@@ -30,7 +30,9 @@ body {
   background: transparent;
   display: flex;
   align-items: flex-end;
-  padding: 6px 8px 10px;
+  padding: 8px 44px 8px;
+  overflow: hidden;
+  justify-content: center;
   font-family: "Inter", "SF Pro Text", system-ui, sans-serif;
   font-size: 17px;
   color: var(--text);
@@ -41,7 +43,8 @@ body {
 
 #notch {
   position: relative;
-  width: 100%;
+  width: 640px;
+  flex: none;
   display: flex;
   flex-direction: column;
   padding: 22px 26px 20px;

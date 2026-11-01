@@ -3,7 +3,7 @@ const path = require('node:path');
 
 const BASE = process.env.SILISTEN_URL || 'http://127.0.0.1:8756';
 const TOKEN = process.env.SILISTEN_TOKEN || '';
-const WIDTH = 660;
+const WIDTH = 728;
 
 let win = null;
 let desiredHeight = 220;
@@ -28,7 +28,7 @@ function bounds(height) {
   const wa = display.workArea;
   return {
     x: Math.round(wa.x + (wa.width - WIDTH) / 2),
-    y: Math.round(wa.y + wa.height - height - 22),
+    y: Math.round(wa.y + wa.height - height - 24),
     width: WIDTH,
     height
   };
@@ -104,6 +104,11 @@ ipcMain.handle('api', async (_e, { path: route, body }) => {
 });
 
 ipcMain.on('hide', () => { if (win) win.hide(); });
+
+ipcMain.on('hit', (_e, inside) => {
+  if (!win) return;
+  win.setIgnoreMouseEvents(!inside, { forward: true });
+});
 ipcMain.handle('copy', (_e, text) => { clipboard.writeText(String(text || '')); return true; });
 
 ipcMain.handle('pick-file', async () => {
