@@ -1,3 +1,4 @@
+import re
 import threading
 from pathlib import Path
 
@@ -68,6 +69,58 @@ class Diarizer:
         return [(float(s.start), float(s.end), str(s.speaker)) for s in result.sort_by_start_time()]
 
 
+ROMANIAN_MODEL = "FraPiz/whisper-large-v3-turbo-moldovan-romanian"
+_runs = threading.Lock()
+
+
+def _make_pipe(name, gpu):
+    from transformers import pipeline
+
+    dtype = torch.float16 if gpu else torch.float32
+    kwargs = dict(model=name, device="cuda" if gpu else "cpu")
+    try:
+        return pipeline("automatic-speech-recognition", dtype=dtype, **kwargs)
+    except TypeError:
+        return pipeline("automatic-speech-recognition", torch_dtype=dtype, **kwargs)
+
+
+def _run(pipe, waveform, kwargs):
+    with _runs, torch.inference_mode():
+        return pipe(waveform, **kwargs)
+
+
+RO_CHARS = set("ăâîșțĂÂÎȘȚ")
+RO_WORDS = {"și", "să", "nu", "este", "sunt", "care", "pentru", "dar", "din", "pe", "cu", "la", "un", "o", "eu", "tu", "el", "ea", "noi", "voi", "ei", "sau", "mai", "foarte", "acest", "aceasta", "că", "să", "am", "ai", "are", "avem"}
+
+
+def _looks_romanian(text):
+    if any(ch in RO_CHARS for ch in text):
+        return True
+    words = [w.strip(".,!?;:\"'").lower() for w in text.split()]
+    words = [w for w in words if w]
+    if not words:
+        return True
+    hits = sum(1 for w in words if w in RO_WORDS)
+    return hits / len(words) >= 0.2 or hits >= 3
+
+
+def _degenerate(text):
+    if len(text) < 24:
+        return False
+    words = [w for w in text.split() if w]
+    if words:
+        head, tail = words[:-1], words[1:]
+        if head and sum(1 for a, b in zip(head, tail) if a == b) / len(head) > 0.6:
+            return True
+        if len(set(map(str.lower, words))) / len(words) < 0.15:
+            return True
+    compact = text.replace(" ", "").lower()
+    if len(set(compact)) / len(compact) < 0.08:
+        return True
+    if re.search(r"(..+?)\1{4,}", compact):
+        return True
+
+
 def _load_vad(cfg):
     path = Path(cfg.get("diarization_dir") or config.MODELS_DIR) / VAD_FILE
     if not path.is_file():
@@ -96,6 +149,8 @@ class Engine:
         self.device = None
         self.using_gpu = False
         self._pipe = None
+        self._ro_pipe = None
+        self._ro_loaded = False
         self._lock = threading.Lock()
         self._load_lock = threading.Lock()
         self.vad = _load_vad(cfg)
@@ -126,6 +181,23 @@ class Engine:
             self.error = str(e).splitlines()[0][:400]
         if self.cfg.get("diarize"):
             self.diar.load()
+
+    def _language_model(self, language):
+        if not language or language != "ro":
+            return None
+        if self.cfg.get("romanian_model_off"):
+            return None
+        with self._load_lock:
+            if not self._ro_loaded:
+                self._ro_loaded = True
+                try:
+                    self._ro_pipe = _make_pipe(
+                        self.cfg.get("romanian_model") or ROMANIAN_MODEL, self.using_gpu
+                    )
+                except Exception as e:
+                    self._ro_pipe = None
+                    self.error = f"romanian model unavailable: {str(e).splitlines()[0][:200]}"
+        return self._ro_pipe
 
     def ensure_ready(self):
         if self._pipe is not None:
@@ -177,8 +249,18 @@ class Engine:
         spans = self.speech_spans(waveform)
         if spans is not None and not spans:
             return {"text": "", "segments": [], "silent": True}
-        with self._lock, torch.inference_mode():
-            out = self._pipe(waveform, **kwargs)
+        out = None
+        pipe = self._language_model(language)
+        if pipe is not None:
+            try:
+                candidate = _run(pipe, waveform, kwargs)
+                text = candidate.get("text", "")
+                if not _degenerate(text) and _looks_romanian(text):
+                    out = candidate
+            except Exception:
+                out = None
+        if out is None:
+            out = _run(self._pipe, waveform, kwargs)
         duration = waveform.size / RATE
         return {"text": out.get("text", "").strip(), "segments": _to_segments(out, duration)}
 

@@ -36,6 +36,7 @@ It runs `silisten toggle`.
 ## Models — all local, no tokens, no accounts
 
 - Speech: `openai/whisper-large-v3`, fp16 on the GPU, full precision — not quantized. Downloaded once from Hugging Face into the local cache.
+- Romanian: `FraPiz/whisper-large-v3-turbo-moldovan-romanian` is used instead when the language is set to Romanian — roughly 3× faster and far more accurate on Romanian speech. If its output does not look Romanian (or it starts looping), the app falls back to large-v3 so a wrong language setting can never corrupt the text. Both are configurable: `model` and `romanian_model`.
 - Speakers: sherpa-onnx running pyannote segmentation-3.0 + WeSpeaker CAM++ embeddings on CPU. Small ONNX models in `~/.local/share/silisten/models/`, married to nothing and used offline. Diarizing a minute of audio takes about a second.
 
 `diarization_threshold` in the config controls how eagerly voices are merged into one speaker — raise it if one person splits into several, lower it if two people merge.

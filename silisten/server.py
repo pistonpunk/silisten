@@ -228,7 +228,7 @@ class App:
             self.duration = 0.0
 
     def update_config(self, patch):
-        allowed = {"shortcut", "language", "diarize", "auto_stop", "auto_stop_seconds", "input_device", "diarization_threshold", "diarization_dir", "model"}
+        allowed = {"shortcut", "language", "diarize", "auto_stop", "auto_stop_seconds", "input_device", "diarization_threshold", "diarization_dir", "model", "romanian_model"}
         changed = {k: v for k, v in patch.items() if k in allowed}
         if "language" in changed and changed["language"] in ("", "auto"):
             changed["language"] = None
