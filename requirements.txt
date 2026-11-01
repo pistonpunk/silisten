@@ -1,0 +1,10 @@
+--extra-index-url https://repo.amd.com/rocm/whl-multi-arch/
+--extra-index-url https://pypi.org/simple
+
+torch[device-gfx1201]==2.11.0+rocm7.14.1
+torchaudio==2.11.0+rocm7.14.1
+transformers>=4.48
+safetensors
+numpy
+huggingface_hub
+pyannote.audio>=3.1
