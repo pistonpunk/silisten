@@ -75,13 +75,17 @@ Window {
         implicitHeight: content.implicitHeight + 44
         color: "#000000"
         radius: 28
-        topLeftRadius: 28
-        topRightRadius: 28
-        bottomLeftRadius: 0
-        bottomRightRadius: 0
         opacity: revealProgress
         transform: Translate {
             y: (1 - revealProgress) * 40
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 28
+            color: "#000000"
         }
 
         ColumnLayout {
