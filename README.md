@@ -28,7 +28,7 @@ The first start creates a Python environment in `~/.local/share/silisten/venv`, 
 ### From source
 
 ```sh
-git clone https://github.com/<you>/silisten
+git clone https://github.com/pistonpunk/silisten
 cd silisten
 ./install.sh
 ```
