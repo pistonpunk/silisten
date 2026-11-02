@@ -28,6 +28,7 @@ typedef struct {
     GtkWidget *progress;
     GtkWidget *error_label;
     GtkWidget *transcript;
+    GtkWidget *transcript_view;
     GtkWidget *mic_box;
     GtkWidget *lang_box;
     GtkWidget *copy_btn;
@@ -48,6 +49,9 @@ typedef struct {
 } App;
 
 static App A;
+static int syncing = 0;
+static char cur_lang[16] = "";
+static char cur_dev[160] = "default";
 static int work_progress_pct = -1;
 static int RENDER_MODE = 0;
 
@@ -172,10 +176,22 @@ static char current_page[16] = "";
 static int target_height(void) {
     const char *page = current_page[0] ? current_page : "result";
     int h;
-    if (strcmp(page, "listen") == 0) h = 322;
-    else if (strcmp(page, "work") == 0) h = 210;
-    else if (strcmp(page, "error") == 0) h = 250;
-    else h = 430;
+    if (strcmp(page, "listen") == 0) return 322;
+    if (strcmp(page, "work") == 0) return 142;
+    if (strcmp(page, "error") == 0) return 250;
+
+    int text_h = 60;
+    if (A.scroll) {
+        GtkRequisition req = {0, 0};
+        gtk_widget_get_preferred_size(A.scroll, &req, NULL);
+        text_h = req.height;
+        int min_h = gtk_widget_get_mapped(A.scroll) ? 60 : 40;
+        if (text_h < 28) text_h = 28;
+        if (text_h > 260) text_h = 260;
+    }
+    h = text_h + 186;
+    if (h < 210) h = 210;
+    if (h > 420) h = 420;
     return h;
 }
 
@@ -373,7 +389,9 @@ static void populate_mic(void) {
     }
     g_object_unref(p);
     g_string_free(r, TRUE);
+    syncing = 1;
     gtk_combo_box_set_active(GTK_COMBO_BOX(A.mic_box), 0);
+    syncing = 0;
 }
 
 static void populate_lang(void) {
@@ -399,8 +417,9 @@ static void populate_lang(void) {
 
 static void on_mic_changed(GtkComboBox *c, gpointer d) {
     (void)d;
+    if (syncing) return;
     const char *id = gtk_combo_box_get_active_id(c);
-    if (!id) return;
+    if (!id || strcmp(id, cur_dev) == 0) return;
     JsonBuilder *jb = json_builder_new();
     json_builder_begin_object(jb);
     json_builder_set_member_name(jb, "input_device");
@@ -419,8 +438,9 @@ static void on_mic_changed(GtkComboBox *c, gpointer d) {
 
 static void on_lang_changed(GtkComboBox *c, gpointer d) {
     (void)d;
+    if (syncing) return;
     const char *code = gtk_combo_box_get_active_id(c);
-    if (!code) return;
+    if (!code || strcmp(code, cur_lang) == 0) return;
     JsonBuilder *jb = json_builder_new();
     json_builder_begin_object(jb);
     json_builder_set_member_name(jb, "language");
@@ -465,6 +485,12 @@ static void apply_state(const char *json) {
     A.duration = json_object_get_double_member(o, "duration");
     A.listening = strcmp(status, "listening") == 0;
 
+    if (!A.listening) {
+        A.nlevels = 0;
+    } else if (A.duration < 0.25) {
+        A.nlevels = 0;
+    }
+
     if (json_object_has_member(o, "progress") && !json_object_get_null_member(o, "progress")) {
         A.progress_value = json_object_get_double_member(o, "progress");
         A.has_progress = 1;
@@ -495,12 +521,22 @@ static void apply_state(const char *json) {
     const char *text = json_object_has_member(o, "text") ? json_object_get_string_member(o, "text") : "";
     if (text && *text) {
         gtk_label_set_text(GTK_LABEL(A.transcript), text);
+        GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(A.transcript_view));
+        if (g_strcmp0(gtk_label_get_text(GTK_LABEL(A.transcript)), text) != 0) {
+            gtk_text_buffer_set_text(buf, text, -1);
+            GtkTextIter start;
+            gtk_text_buffer_get_start_iter(buf, &start);
+            gtk_text_buffer_place_cursor(buf, &start);
+            gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(A.transcript_view), &start, 0.0, TRUE, 0.0, 0.0);
+        }
         gtk_style_context_remove_class(gtk_widget_get_style_context(A.transcript), "empty");
         gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(A.scroll), 240);
     gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(A.scroll), 240);
     gtk_scrolled_window_set_propagate_natural_height(GTK_SCROLLED_WINDOW(A.scroll), FALSE);
     } else if (strcmp(status, "done") == 0 || strcmp(status, "idle") == 0) {
         gtk_label_set_text(GTK_LABEL(A.transcript), "No speech detected. Try again.");
+        GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(A.transcript_view));
+        gtk_text_buffer_set_text(buf, "No speech detected. Try again.", -1);
         gtk_style_context_add_class(gtk_widget_get_style_context(A.transcript), "empty");
         gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(A.scroll), 28);
     gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(A.scroll), 28);
@@ -561,15 +597,21 @@ static void apply_state(const char *json) {
         JsonObject *cfg = json_object_get_object_member(o, "config");
         if (cfg && json_object_has_member(cfg, "language")) {
             const char *lang = json_object_get_string_member(cfg, "language");
-            if (!gtk_combo_box_set_active_id(GTK_COMBO_BOX(A.lang_box), lang && *lang ? lang : "")) {
+            g_strlcpy(cur_lang, lang && *lang ? lang : "", sizeof cur_lang);
+            syncing = 1;
+            if (!gtk_combo_box_set_active_id(GTK_COMBO_BOX(A.lang_box), cur_lang)) {
                 gtk_combo_box_set_active(GTK_COMBO_BOX(A.lang_box), 0);
             }
+            syncing = 0;
         }
         if (cfg && json_object_has_member(cfg, "input_device")) {
             const char *dev = json_object_get_string_member(cfg, "input_device");
-            if (!gtk_combo_box_set_active_id(GTK_COMBO_BOX(A.mic_box), dev && *dev ? dev : "default")) {
+            g_strlcpy(cur_dev, dev && *dev ? dev : "default", sizeof cur_dev);
+            syncing = 1;
+            if (!gtk_combo_box_set_active_id(GTK_COMBO_BOX(A.mic_box), cur_dev)) {
                 gtk_combo_box_set_active(GTK_COMBO_BOX(A.mic_box), 0);
             }
+            syncing = 0;
         }
     }
     (void)active;
@@ -607,6 +649,18 @@ static void load_css(void) {
         "button.primary:hover { background-color: #ffffff; }\n"
         "button.ghost { background-color: rgba(255,255,255,0.10); color: #f5f5f7; font-weight: 500; }\n"
         "button.ghost:hover { background-color: rgba(255,255,255,0.16); }\n"
+        "button.icon-primary { background: #f5f5f7; border: none; padding: 10px 18px;\n"
+        "    min-height: 0; min-width: 0; }\n"
+        "button.icon-primary:hover { background: #ffffff; }\n"
+        "button.icon-primary:active { background: #dcdce0; }\n"
+        "button.icon-primary image { color: #000000; -gtk-icon-style: symbolic; }\n"
+        "button.icon-ghost { background: rgba(255,255,255,0.10); border: none; padding: 10px 18px;\n"
+        "    min-height: 0; min-width: 0; }\n"
+        "button.icon-ghost:hover { background: rgba(255,255,255,0.18); }\n"
+        "button.icon-ghost:active { background: rgba(255,255,255,0.26); }\n"
+        "button.icon-ghost image { color: #f5f5f7; -gtk-icon-style: symbolic; }\n"
+        "button.ghost:hover { background: rgba(255,255,255,0.16); }\n"
+        "button { cursor: pointer; }\n"
         "combobox { border-radius: 999px; background-color: rgba(255,255,255,0.10);\n"
         "           color: #d8d8dc; padding: 2px 6px; font-size: 15px; min-width: 110px; }\n"
         "combobox button { background-color: transparent; padding: 2px 6px; color: #d8d8dc;\n"
@@ -614,12 +668,13 @@ static void load_css(void) {
         "combobox arrow { min-width: 12px; min-height: 12px; }\n"
         "progressbar trough { min-height: 3px; border-radius: 3px; background-color: rgba(255,255,255,0.12); }\n"
         "progressbar progress { min-height: 3px; border-radius: 3px; background-color: #f5f5f7; }\n"
-        "textview, textview text { background-color: transparent; color: #f5f5f7; font-size: 18px; }\n"
+        "textview, textview text { background-color: transparent; background-image: none;\n"
+        "    color: #f5f5f7; font-size: 18px; }\n"
         "scrolledwindow { border: none; box-shadow: none; }\n"
         "scrolledwindow:focus, textview:focus { outline: none; border: none; box-shadow: none; }\n";
     gtk_css_provider_load_from_data(css, data, -1, NULL);
     gtk_style_context_add_provider_for_screen(
-        gdk_screen_get_default(), GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+        gdk_screen_get_default(), GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_USER);
     g_object_unref(css);
 }
 
@@ -684,35 +739,42 @@ static void draw_bar(GtkWidget *w, cairo_t *cr, gpointer d) {
     int height = gtk_widget_get_allocated_height(w);
     double radius = height / 2.0;
 
-    cairo_set_source_rgba(cr, 1, 1, 1, 0.10);
     cairo_new_sub_path(cr);
     cairo_arc(cr, radius, height / 2.0, radius, M_PI / 2, 3 * M_PI / 2);
     cairo_arc(cr, width - radius, height / 2.0, radius, 3 * M_PI / 2, M_PI / 2);
     cairo_close_path(cr);
+    cairo_set_source_rgba(cr, 1, 1, 1, 0.10);
     cairo_fill(cr);
-
-    double frac = (work_progress_pct >= 0) ? work_progress_pct / 100.0 : 0.3;
-    if (frac < 0.06) frac = 0.06;
-    double bar_w = width * frac;
 
     cairo_save(cr);
     cairo_new_sub_path(cr);
     cairo_arc(cr, radius, height / 2.0, radius, M_PI / 2, 3 * M_PI / 2);
-    cairo_arc(cr, bar_w - radius, height / 2.0, radius, 3 * M_PI / 2, M_PI / 2);
+    cairo_arc(cr, width - radius, height / 2.0, radius, 3 * M_PI / 2, M_PI / 2);
     cairo_close_path(cr);
     cairo_clip(cr);
 
-    cairo_pattern_t *g = cairo_pattern_create_linear(0, 0, bar_w > 40 ? bar_w : 40, 0);
-    for (int i = 0; i <= 8; i++) {
-        double t = i / 8.0;
-        double hue = fmod(phase_t + t * 0.9, 1.0);
-        double r, gg, b;
-        hsv(hue, 0.6, 1.0, &r, &gg, &b);
-        cairo_pattern_add_color_stop_rgb(g, t, r, gg, b);
+    cairo_pattern_t *rainbow = cairo_pattern_create_linear(0, 0, width, 0);
+    for (int i = 0; i <= 24; i++) {
+        double t = i / 24.0;
+        double hue = fmod(phase_t + t * 0.85, 1.0);
+        double r, g, b;
+        hsv(hue, 0.62, 1.0, &r, &g, &b);
+        cairo_pattern_add_color_stop_rgb(rainbow, t, r, g, b);
     }
-    cairo_set_source(cr, g);
+    cairo_set_source(cr, rainbow);
+    cairo_paint_with_alpha(cr, 0.9);
+    cairo_pattern_destroy(rainbow);
+
+    double sheen_w = width * 0.35;
+    double sx = fmod(phase_t * 2.4, 1.0) * (width + sheen_w) - sheen_w;
+    cairo_pattern_t *sheen = cairo_pattern_create_linear(sx, 0, sx + sheen_w, 0);
+    cairo_pattern_add_color_stop_rgba(sheen, 0.0, 1, 1, 1, 0);
+    cairo_pattern_add_color_stop_rgba(sheen, 0.5, 1, 1, 1, 0.55);
+    cairo_pattern_add_color_stop_rgba(sheen, 1.0, 1, 1, 1, 0);
+    cairo_set_source(cr, sheen);
     cairo_paint(cr);
-    cairo_pattern_destroy(g);
+    cairo_pattern_destroy(sheen);
+
     cairo_restore(cr);
 }
 
@@ -725,7 +787,9 @@ static gboolean bar_tick(gpointer d) {
 }
 
 static GtkWidget *pane_work(void) {
-    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 14);
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+    gtk_widget_set_margin_top(box, 6);
+    gtk_widget_set_margin_bottom(box, 10);
     A.phase = gtk_label_new("Working");
     gtk_widget_set_halign(A.phase, GTK_ALIGN_START);
     gtk_style_context_add_class(gtk_widget_get_style_context(A.phase), "muted");
@@ -738,40 +802,150 @@ static GtkWidget *pane_work(void) {
     return box;
 }
 
+static void pill(cairo_t *cr, int width, int height, double r, double g, double b, double a) {
+    double radius = height / 2.0;
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, radius, height / 2.0, radius, M_PI / 2, 3 * M_PI / 2);
+    cairo_arc(cr, width - radius, height / 2.0, radius, 3 * M_PI / 2, M_PI / 2);
+    cairo_close_path(cr);
+    cairo_set_source_rgba(cr, r, g, b, a);
+    cairo_fill(cr);
+}
+
+static void draw_copy_icon(GtkWidget *w, cairo_t *cr, gpointer d) {
+    (void)d;
+    int width = gtk_widget_get_allocated_width(w);
+    int height = gtk_widget_get_allocated_height(w);
+    double cx = width / 2.0, cy = height / 2.0;
+    pill(cr, width, height, 0.96, 0.96, 0.97, 1.0);
+
+    cairo_set_line_width(cr, 1.6);
+    cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+    cairo_set_source_rgba(cr, 0, 0, 0, 0.85);
+
+    double bw = 8.5, bh = 10.0, r = 2.4;
+
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, cx + 1.0 - bw + r, cy - 1.0 - bh + r, r, M_PI, 1.5 * M_PI);
+    cairo_line_to(cr, cx + 1.0 + bw - r, cy - 1.0 - bh);
+    cairo_arc(cr, cx + 1.0 + bw - r, cy - 1.0 - bh + r, r, 1.5 * M_PI, 2 * M_PI);
+    cairo_line_to(cr, cx + 1.0 + bw, cy - 1.0 + bh - r);
+    cairo_arc(cr, cx + 1.0 + bw - r, cy - 1.0 + bh - r, r, 0, 0.5 * M_PI);
+    cairo_line_to(cr, cx + 1.0 - bw + r, cy - 1.0 + bh);
+    cairo_arc(cr, cx + 1.0 - bw + r, cy - 1.0 + bh - r, r, 0.5 * M_PI, M_PI);
+    cairo_close_path(cr);
+    cairo_stroke(cr);
+
+    cairo_set_source_rgba(cr, 0.96, 0.96, 0.97, 1.0);
+    cairo_rectangle(cr, cx - 5.0 - bw / 2.0, cy + 3.0 - bh / 2.0, bw + 1.0, bh + 1.0);
+    cairo_fill(cr);
+
+    cairo_set_source_rgba(cr, 0, 0, 0, 0.85);
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, cx - 3.5 - bw + r, cy + 2.0 - bh + r, r, M_PI, 1.5 * M_PI);
+    cairo_line_to(cr, cx - 3.5 + bw - r, cy + 2.0 - bh);
+    cairo_arc(cr, cx - 3.5 + bw - r, cy + 2.0 - bh + r, r, 1.5 * M_PI, 2 * M_PI);
+    cairo_line_to(cr, cx - 3.5 + bw, cy + 2.0 + bh - r);
+    cairo_arc(cr, cx - 3.5 + bw - r, cy + 2.0 + bh - r, r, 0, 0.5 * M_PI);
+    cairo_line_to(cr, cx - 3.5 - bw + r, cy + 2.0 + bh);
+    cairo_arc(cr, cx - 3.5 - bw + r, cy + 2.0 + bh - r, r, 0.5 * M_PI, M_PI);
+    cairo_close_path(cr);
+    cairo_stroke(cr);
+}
+
+static void draw_file_icon(GtkWidget *w, cairo_t *cr, gpointer d) {
+    (void)d;
+    int width = gtk_widget_get_allocated_width(w);
+    int height = gtk_widget_get_allocated_height(w);
+    double cx = width / 2.0, cy = height / 2.0;
+    pill(cr, width, height, 1, 1, 1, 0.10);
+    double w2 = 7.0, h2 = 8.5, fold = 4.5;
+    cairo_set_line_width(cr, 1.7);
+    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+    cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+    cairo_set_source_rgba(cr, 1, 1, 1, 0.92);
+
+    cairo_new_sub_path(cr);
+    cairo_move_to(cr, cx - w2, cy - h2);
+    cairo_line_to(cr, cx + w2 - fold, cy - h2);
+    cairo_line_to(cr, cx + w2, cy - h2 + fold);
+    cairo_line_to(cr, cx + w2, cy + h2);
+    cairo_line_to(cr, cx - w2, cy + h2);
+    cairo_close_path(cr);
+    cairo_stroke(cr);
+
+    cairo_new_sub_path(cr);
+    cairo_move_to(cr, cx + w2 - fold, cy - h2);
+    cairo_line_to(cr, cx + w2 - fold, cy - h2 + fold);
+    cairo_line_to(cr, cx + w2, cy - h2 + fold);
+    cairo_stroke(cr);
+
+    cairo_new_sub_path(cr);
+    cairo_move_to(cr, cx, cy - 2.5);
+    cairo_line_to(cr, cx, cy + 4.0);
+    cairo_move_to(cr, cx - 2.6, cy + 0.4);
+    cairo_line_to(cr, cx, cy - 2.5);
+    cairo_line_to(cr, cx + 2.6, cy + 0.4);
+    cairo_stroke(cr);
+}
+
+static void set_pointer_cursor(GtkWidget *w, gpointer d) {
+    (void)d;
+    GdkCursor *cursor = gdk_cursor_new_from_name(gdk_display_get_default(), "pointer");
+    if (cursor) {
+        gdk_window_set_cursor(gtk_widget_get_window(w), cursor);
+        g_object_unref(cursor);
+    }
+}
+
+static GtkWidget *icon_button(const char *icon, const char *tip, const char *cls) {
+    GtkWidget *button = gtk_button_new();
+    GtkWidget *image = gtk_image_new_from_icon_name(icon, GTK_ICON_SIZE_BUTTON);
+    gtk_widget_set_size_request(image, 22, 22);
+    gtk_button_set_image(GTK_BUTTON(button), image);
+    gtk_style_context_add_class(gtk_widget_get_style_context(button), cls);
+    if (tip) gtk_widget_set_tooltip_text(button, tip);
+    GdkCursor *cursor = gdk_cursor_new_from_name(gdk_display_get_default(), "pointer");
+    gdk_window_set_cursor(gtk_widget_get_window(button), cursor);
+    if (cursor) g_object_unref(cursor);
+    g_signal_connect(button, "realize", G_CALLBACK(set_pointer_cursor), NULL);
+    return button;
+}
+
 static GtkWidget *pane_result(void) {
-    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
-    gtk_widget_set_size_request(scroll, -1, 240);
+    gtk_widget_set_size_request(scroll, -1, 60);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     A.scroll = scroll;
-    A.transcript = gtk_label_new("");
-    gtk_label_set_line_wrap(GTK_LABEL(A.transcript), TRUE);
-    gtk_label_set_selectable(GTK_LABEL(A.transcript), TRUE);
-    gtk_label_set_xalign(GTK_LABEL(A.transcript), 0.0);
-    gtk_label_set_yalign(GTK_LABEL(A.transcript), 0.0);
-    gtk_widget_set_can_focus(A.transcript, FALSE);
-    gtk_widget_set_hexpand(A.transcript, TRUE);
-
-    gtk_widget_set_valign(A.transcript, GTK_ALIGN_START);
-    gtk_container_add(GTK_CONTAINER(scroll), A.transcript);
+    A.transcript_view = gtk_text_view_new();
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(A.transcript_view), FALSE);
+    gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(A.transcript_view), FALSE);
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(A.transcript_view), GTK_WRAP_WORD_CHAR);
+    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(A.transcript_view), 0);
+    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(A.transcript_view), 6);
+    gtk_text_view_set_pixels_below_lines(GTK_TEXT_VIEW(A.transcript_view), 4);
+    gtk_container_add(GTK_CONTAINER(scroll), A.transcript_view);
     gtk_box_pack_start(GTK_BOX(box), scroll, TRUE, TRUE, 0);
 
     GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    A.copy_btn = gtk_button_new_with_label("Copy all");
-    gtk_style_context_add_class(gtk_widget_get_style_context(A.copy_btn), "primary");
-    g_signal_connect(A.copy_btn, "clicked", G_CALLBACK(on_copy), NULL);
-    gtk_box_pack_start(GTK_BOX(row), A.copy_btn, FALSE, FALSE, 0);
+
+    GtkWidget *copy = icon_button("edit-copy-symbolic", "Copy all", "icon-primary");
+    g_signal_connect(copy, "clicked", G_CALLBACK(on_copy), NULL);
+    gtk_box_pack_start(GTK_BOX(row), copy, FALSE, FALSE, 0);
+    A.copy_btn = copy;
 
     GtkWidget *more = gtk_button_new_with_label("Talk more");
     gtk_style_context_add_class(gtk_widget_get_style_context(more), "ghost");
     g_signal_connect(more, "clicked", G_CALLBACK(on_more), NULL);
     gtk_box_pack_start(GTK_BOX(row), more, FALSE, FALSE, 0);
 
-    GtkWidget *file = gtk_button_new_with_label("Upload file");
-    gtk_style_context_add_class(gtk_widget_get_style_context(file), "ghost");
+    GtkWidget *file = icon_button("document-open-symbolic", "Upload audio or video", "icon-ghost");
     g_signal_connect(file, "clicked", G_CALLBACK(on_file), NULL);
-    gtk_box_pack_start(GTK_BOX(row), file, FALSE, FALSE, 0);
+    gtk_box_pack_end(GTK_BOX(row), file, FALSE, FALSE, 0);
 
+    gtk_widget_set_margin_bottom(row, 2);
+    gtk_widget_set_margin_top(row, 6);
     gtk_box_pack_start(GTK_BOX(box), row, FALSE, FALSE, 0);
     return box;
 }
@@ -827,7 +1001,7 @@ static void build(void) {
     A.root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(A.root), 20);
     gtk_widget_set_margin_top(A.root, 4);
-    gtk_widget_set_margin_bottom(A.root, 14);
+    gtk_widget_set_margin_bottom(A.root, 12);
     gtk_widget_set_size_request(A.root, WIDTH - 40, -1);
     gtk_container_add(GTK_CONTAINER(A.window), A.root);
 
