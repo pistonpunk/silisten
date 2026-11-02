@@ -88,7 +88,7 @@ jobs:
           APPIMAGE=$(ls Silisten-*-x86_64.AppImage)
           export APPIMAGE_EXTRACT_AND_RUN=1
           WORK=$(mktemp -d)
-          ( cd "$WORK" && "/${APPIMAGE}" --appimage-extract > /dev/null )
+          ( cd "$WORK" && "$GITHUB_WORKSPACE/$APPIMAGE" --appimage-extract > /dev/null )
           cp -r "$WORK/squashfs-root" ./squashfs-root
           rm -rf "$WORK"
           LIBDIR="$(dirname "$(find squashfs-root -name 'libQt6Core.so.6' | head -1)")"
