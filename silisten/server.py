@@ -126,7 +126,7 @@ class App:
                 data, language=self.cfg.get("language"), long_form=data.size > 29 * audio.RATE
             )
             segments = result["segments"]
-            if self.cfg.get("diarize") and self.engine.diar.state == "ready":
+            if self.cfg.get("diarization") and self.engine.diar.state == "ready":
                 self.set_phase("identifying speakers")
                 turns = self.engine.diar.turns(data)
                 attach_speakers(segments, turns)
@@ -177,7 +177,7 @@ class App:
             segments = self.engine.transcribe_file(
                 data, language=self.cfg.get("language"), progress=self.set_progress
             )
-            if self.cfg.get("diarize") and self.engine.diar.state == "ready":
+            if self.cfg.get("diarization") and self.engine.diar.state == "ready":
                 self.set_phase("identifying speakers")
                 with self.lock:
                     self.progress = None
@@ -212,15 +212,17 @@ class App:
             self.duration = 0.0
 
     def update_config(self, patch):
-        allowed = {"shortcut", "language", "diarize", "auto_stop", "auto_stop_seconds", "input_device", "diarization_threshold", "diarization_dir", "model", "romanian_model"}
+        allowed = {"shortcut", "language", "input_device", "speech_model", "romanian_model", "vad_model", "diarization", "auto_download", "vad_threshold", "diarization_threshold", "models_dir", "auto_stop", "auto_stop_seconds"}
         changed = {k: v for k, v in patch.items() if k in allowed}
         if "language" in changed and changed["language"] in ("", "auto"):
             changed["language"] = None
-        if "diarize" in changed:
-            changed["diarize"] = bool(changed["diarize"])
+        if "diarization" in changed and changed["diarization"] in (True, False):
+            changed["diarization"] = "pyannote-campplus" if changed["diarization"] else None
         self.cfg.update(changed)
         config.save(self.cfg)
-        if "diarization_threshold" in changed or "diarization_dir" in changed:
+        if {"speech_model", "romanian_model", "models_dir"} & set(changed):
+            threading.Thread(target=self.engine.load, daemon=True).start()
+        if {"diarization_threshold", "models_dir"}.__and__(set(changed)) and self.cfg.get("diarization"):
             threading.Thread(target=self.engine.diar.load, daemon=True).start()
         return None
 
@@ -251,7 +253,7 @@ class App:
                 "diarizer": {"state": self.engine.diar.state, "error": self.engine.diar.error},
                 "config": {
                     "language": self.cfg.get("language"),
-                    "diarize": self.cfg.get("diarize"),
+                    "diarize": self.cfg.get("diarization"),
                     "input_device": self.cfg.get("input_device"),
                 },
             }
@@ -292,6 +294,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(payload)
         if route == "/config":
             return self._send(self.app.cfg)
+        if route == "/models":
+            from . import models
+
+            return self._send(models.status(self.app.cfg))
         if route == "/languages":
             return self._send(language_list())
         if route == "/sources":

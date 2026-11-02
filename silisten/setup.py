@@ -124,12 +124,12 @@ def install_diarization_models():
 def prefetch(cfg):
     from .engine import Engine
 
-    print("  loading whisper-large-v3 (first run downloads ~3 GB)...")
     engine = Engine(cfg)
     engine.load()
     print(f"  speech model: {engine.state} on {engine.device} ({engine.error or 'ok'})")
-    engine.diar.load()
-    print(f"  speakers: {engine.diar.state} ({engine.diar.error or 'ok'})")
+    if cfg.get("diarization"):
+        engine.diar.load()
+        print(f"  speakers: {engine.diar.state} ({engine.diar.error or 'ok'})")
 
 
 def check_commands():
@@ -142,6 +142,46 @@ def check_commands():
     return True
 
 
+PROFILE_HELP = {
+    "best": "large-v3, most accurate, ~6 GB VRAM",
+    "balanced": "large-v3-turbo, about twice as fast",
+    "fast": "small, runs on modest hardware",
+    "minimal": "small, no speaker labels",
+}
+
+
+def choose_profile(args):
+    from . import models
+
+    profile = getattr(args, "profile", None)
+    if profile:
+        if profile not in models.PROFILES:
+            raise SystemExit(f"unknown profile '{profile}' - choose from {', '.join(models.PROFILES)}")
+        return profile
+    if getattr(args, "yes", False):
+        return "balanced"
+    if not sys.stdin.isatty():
+        return "balanced"
+    print("\n  Which models do you want? Only the chosen ones are downloaded.\n")
+    for index, (name, blurb) in enumerate(PROFILE_HELP.items(), 1):
+        print(f"    {index}) {name:<9} {blurb}")
+    choice = input("\n  Choice [2]: ").strip() or "2"
+    names = list(PROFILE_HELP)
+    if choice.isdigit() and 1 <= int(choice) <= len(names):
+        return names[int(choice) - 1]
+    return choice if choice in models.PROFILES else "balanced"
+
+
+def install_models(cfg, profile):
+    from . import models
+
+    print(f"  models: {profile} profile")
+    ok = models.install_profile(cfg, profile)
+    config.save(cfg)
+    print(f"  models: {'ok' if ok else 'incomplete'}")
+    return ok
+
+
 def run(args):
     cfg = config.load()
     print("silisten setup")
@@ -149,7 +189,8 @@ def run(args):
     install_command()
     desktop_entry()
     gnome_shortcut(cfg["shortcut"])
-    install_diarization_models()
+    profile = choose_profile(args)
+    install_models(cfg, profile)
     if not args.no_prefetch:
         prefetch(cfg)
     print(f"\n  config: {config.PATH}")

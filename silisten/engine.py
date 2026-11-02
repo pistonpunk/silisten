@@ -27,7 +27,7 @@ class Diarizer:
         self._lock = threading.Lock()
 
     def model_dir(self):
-        return Path(self.cfg.get("diarization_dir") or config.MODELS_DIR)
+        return Path(self.cfg.get("models_dir") or config.MODELS_DIR)
 
     def load(self):
         base = self.model_dir()
@@ -69,7 +69,21 @@ class Diarizer:
         return [(float(s.start), float(s.end), str(s.speaker)) for s in result.sort_by_start_time()]
 
 
-ROMANIAN_MODEL = "FraPiz/whisper-large-v3-turbo-moldovan-romanian"
+def _resolve(kind, cfg):
+    from . import models
+
+    name = cfg.get("romanian_model") if kind == "romanian" else cfg.get("speech_model")
+    if kind == "romanian" and not name:
+        return None
+    local = models.local_path(kind, name)
+    if local is not None:
+        return str(local)
+    entry = models.romanian_repo(cfg) if kind == "romanian" else models.speech_repo(cfg)
+    if cfg.get("auto_download", True):
+        return entry["repo"]
+    raise RuntimeError(
+        f"{entry['label']} is not installed. Run: silisten models install {kind} {name}"
+    )
 _runs = threading.Lock()
 
 
@@ -122,7 +136,7 @@ def _degenerate(text):
 
 
 def _load_vad(cfg):
-    path = Path(cfg.get("diarization_dir") or config.MODELS_DIR) / VAD_FILE
+    path = Path(cfg.get("models_dir") or config.MODELS_DIR) / VAD_FILE
     if not path.is_file():
         return None
     try:
@@ -166,7 +180,7 @@ class Engine:
             gpu = torch.cuda.is_available()
             device = "cuda" if gpu else "cpu"
             dtype = torch.float16 if gpu else torch.float32
-            kwargs = dict(model=self.cfg["model"], device=device)
+            kwargs = dict(model=_resolve("speech", self.cfg), device=device)
             try:
                 pipe = pipeline("automatic-speech-recognition", dtype=dtype, **kwargs)
             except TypeError:
@@ -179,21 +193,19 @@ class Engine:
         except Exception as e:
             self.state = "error"
             self.error = str(e).splitlines()[0][:400]
-        if self.cfg.get("diarize"):
+        if self.cfg.get("diarization"):
             self.diar.load()
 
     def _language_model(self, language):
         if not language or language != "ro":
             return None
-        if self.cfg.get("romanian_model_off"):
+        if not self.cfg.get("romanian_model"):
             return None
         with self._load_lock:
             if not self._ro_loaded:
                 self._ro_loaded = True
                 try:
-                    self._ro_pipe = _make_pipe(
-                        self.cfg.get("romanian_model") or ROMANIAN_MODEL, self.using_gpu
-                    )
+                    self._ro_pipe = _make_pipe(_resolve("romanian", self.cfg), self.using_gpu)
                 except Exception as e:
                     self._ro_pipe = None
                     self.error = f"romanian model unavailable: {str(e).splitlines()[0][:200]}"

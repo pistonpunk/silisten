@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Silisten
+GenericName=Speech to text
+Comment=Push-to-talk transcription with speaker labels
+Exec=silisten
+Icon=silisten
+Terminal=false
+Categories=Utility;AudioVideo;
+Keywords=speech;transcribe;dictate;whisper;
+StartupNotify=false

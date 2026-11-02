@@ -1,89 +1,120 @@
 # Silisten
 
-Push-to-talk transcription for Linux. Whisper large-v3 on the GPU, speaker diarization, a black notch at the bottom of the screen.
+Push-to-talk transcription for Linux. A notch appears at the bottom of the screen, you talk, and your words come back as text with the speakers labelled.
 
-Press a key chord anywhere, talk, press it again. The text appears in the notch; copy it or keep talking and it appends.
+Everything runs on your machine. Whisper does the speech recognition, Silero VAD stops silence from turning into invented sentences, and sherpa-onnx works out who was speaking.
+
+![Silisten](docs/demo.gif)
+
+## Using it
+
+Press `Ctrl+Delete`, talk, press `Done`. The text lands in the notch and you copy it. If you keep talking before copying, the new text is appended instead of replacing what is there.
+
+You can also drop an audio or video file on it, or pick one with the file button.
 
 ## Install
 
-```bash
-cd ~/Work/Silisten
+### AppImage
+
+Download `Silisten-*-x86_64.AppImage` from [releases](../../releases), then:
+
+```sh
+chmod +x Silisten-*-x86_64.AppImage
+./Silisten-*-x86_64.AppImage
+```
+
+The first start creates a Python environment in `~/.local/share/silisten/venv`, installs the backend, and downloads the speech model you pick. Expect a few minutes and a few GB.
+
+### From source
+
+```sh
+git clone https://github.com/<you>/silisten
+cd silisten
 ./install.sh
 ```
 
-`install.sh` creates the venv, installs the ROCm torch wheels and sherpa-onnx, fetches whisper-large-v3 (~3 GB) and the diarization models, builds the native GTK3 notch (`ui-native/`), links the `silisten` command, and adds the GNOME shortcut.
+`install.sh` asks which model profile you want, downloads only those models, builds the Qt UI, puts `silisten` on your PATH, and registers a desktop shortcut.
 
-The UI is a single Qt 6 / QML binary (`ui-qt/`) — no Electron, no browser.
+Dependencies, Debian/Ubuntu names:
 
-It picks its windowing backend at startup:
-- **layer-shell** (KDE Plasma, Hyprland, sway, river, labwc, Wayfire) — true bottom-edge overlay with keyboard interactivity.
-- **X11/XWayland** (GNOME, XFCE and anything else) — a frameless always-on-top window positioned bottom-centre.
-
-Start it with `silisten start`, or press the shortcut. Right now it starts on demand; add the app menu entry to your GNOME autostart if you want it always running.
-
-## Use
-
-- **Shift+Tab+Q** — start listening, press again to stop. If the app isn't running, the shortcut starts it.
-- **Copy all** — puts the whole transcript on the clipboard and hides the notch.
-- **Talk more** — records again and appends to the same transcript.
-- **Upload file** — pick an audio or video file. Drag and drop onto the notch works too.
-- **Esc** — hide the notch.
-
-## Changing the shortcut
-
-The binding lives in GNOME, not in the app. Change it anywhere you like:
-
-- GNOME Settings › Keyboard › Custom Shortcuts › **Silisten**
-- or `silisten shortcut "Ctrl+Alt+Space"` from a terminal
-- or via `gsettings`
-
-It runs `silisten toggle`.
-
-## Models — all local, no tokens, no accounts
-
-- Speech: `openai/whisper-large-v3`, fp16 on the GPU, full precision — not quantized. Downloaded once from Hugging Face into the local cache.
-- Romanian: `FraPiz/whisper-large-v3-turbo-moldovan-romanian` is used instead when the language is set to Romanian — roughly 3× faster and far more accurate on Romanian speech. If its output does not look Romanian (or it starts looping), the app falls back to large-v3 so a wrong language setting can never corrupt the text. Both are configurable: `model` and `romanian_model`.
-- Speakers: sherpa-onnx running pyannote segmentation-3.0 + WeSpeaker CAM++ embeddings on CPU. Small ONNX models in `~/.local/share/silisten/models/`, married to nothing and used offline. Diarizing a minute of audio takes about a second.
-
-`diarization_threshold` in the config controls how eagerly voices are merged into one speaker — raise it if one person splits into several, lower it if two people merge.
-
-## Config
-
-`~/.config/silisten/config.json`
-
-```json
-{
-  "shortcut": "Ctrl+Delete",
-  "language": null,
-  "input_device": "default",
-  "model": "openai/whisper-large-v3",
-  "diarize": true,
-  "auto_stop": true,
-  "auto_stop_seconds": 1.6,
-  "diarization_dir": null,
-  "diarization_threshold": 0.7,
-  "port": 8756
-}
+```
+python3-venv ffmpeg alsa-utils cmake g++ \
+qt6-base-dev qt6-declarative-dev qt6-wayland liblayershellqtinterface-dev
 ```
 
-`language: null` auto-detects. A recording runs through `arecord` (falls back to `pw-record`), files through `ffmpeg`.
+## Models
 
-Recording stops by itself after `auto_stop_seconds` of silence, once you have actually said something. Set `auto_stop` to false to record until you press the key again.
+No model is bundled. You pick what gets downloaded, now or later.
 
-Silero VAD gates every transcription: if nothing is detected as speech, no text is produced. That is what stops Whisper inventing phrases from silence or background noise.
+```sh
+silisten models                 # what is installed, what is in use
+silisten models install speech large-v3-turbo
+silisten models profile fast    # switch everything at once
+```
+
+| Model | Size | Notes |
+| --- | --- | --- |
+| `large-v3` | 3.1 GB | Most accurate. Wants about 6 GB of VRAM. |
+| `large-v3-turbo` | 1.6 GB | Roughly twice as fast, slightly less accurate. |
+| `medium` | 1.5 GB | For smaller GPUs. |
+| `small` | 0.5 GB | Runs on CPU. |
+
+A Romanian fine-tune (`fra-piz-turbo`) is used automatically when the language is set to Romanian. If its output does not look like Romanian it falls back to the main model, so a wrong language setting cannot corrupt your text.
+
+The same choice is available in the app's settings panel. A model that is not downloaded yet is fetched in the background the first time it is needed.
+
+## Configuration
+
+Lives in `~/.config/silisten/config.json`, and everything below can be set with `silisten config --set key=value`.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `shortcut` | `Ctrl+Delete` | Shortcut registered with your desktop |
+| `language` | `null` | Recognition language. `null` auto-detects |
+| `input_device` | `default` | Microphone, by the name shown in the picker |
+| `speech_model` | `large-v3` | One of the names in the table above |
+| `romanian_model` | `fra-piz-turbo` | Set to `null` to disable the Romanian model |
+| `diarization` | `pyannote-campplus` | Speaker labels. `null` turns them off |
+| `diarization_threshold` | `0.7` | Higher merges similar voices, lower splits them |
+| `vad_threshold` | `0.5` | Higher is stricter about what counts as speech |
+| `auto_stop` | `false` | Stop recording by itself after a pause |
+| `auto_stop_seconds` | `1.6` | How long that pause has to be |
+| `auto_download` | `true` | Fetch missing models automatically |
+| `models_dir` | `~/.local/share/silisten/models` | Where models are kept |
+| `port` | `8756` | Local backend port |
 
 ## Requirements
 
-- Linux with a PipeWire or ALSA microphone, `ffmpeg`, `arecord`
-- AMD ROCm GPU (tested on RX 9070 XT / gfx1201) or CPU fallback
-- Python 3.14, Qt 6 (`qt6-base-dev`, `qt6-declarative-dev`, `qt6-wayland`, `liblayershellqtinterface-dev`, `cmake`, `g++`)
+- Linux with a PipeWire or ALSA microphone
+- Python 3.11 or newer
+- 4 GB of RAM, plus whatever your chosen model needs
+- A GPU is optional but much faster. AMD is tested on ROCm; NVIDIA works through the same PyTorch path
 
-The backend listens on `127.0.0.1:8756` and requires the token in `~/.config/silisten/token`, so other local pages can't drive it.
+The windowing backend is picked at startup. Compositors that support layer-shell (KDE Plasma, Hyprland, sway, river, labwc, Wayfire) get a real bottom-edge overlay. Everything else, GNOME included, gets a frameless always-on-top window in the same place.
 
 ## Troubleshooting
 
-**Shortcut does nothing** — check the binding with `gsettings get org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/silisten/ binding`. Re-apply with `silisten shortcut "Shift+Tab+Q"`.
+**The shortcut does nothing.** Run `silisten config` and check the binding matches what your desktop has. On GNOME you can rebind it under Settings → Keyboard.
 
-**Model failed** — Settings shows the error. Usually missing ROCm drivers or no disk space for the weights.
+**It is bound but nothing opens.** Run `silisten start` in a terminal; the error will be there.
 
-**Speakers never labelled** — Settings shows the reason. If the models are missing, `./install.sh` re-downloads them. If one voice splits into many, raise `diarization_threshold`.
+**Transcription is slow.** You are probably running on CPU. Pick a smaller model with `silisten models profile fast`.
+
+**Everything sounds like English.** Set the language explicitly. Auto-detect is unreliable on short clips.
+
+**No speaker labels.** The two small ONNX models are missing: `silisten models install diarization pyannote-campplus`.
+
+**It writes text when I said nothing.** Raise `vad_threshold`, or check the right microphone is selected.
+
+## Building
+
+```sh
+cmake -S ui-qt -B ui-qt/build -DCMAKE_BUILD_TYPE=Release
+cmake --build ui-qt/build -j"$(nproc)"
+```
+
+Pushing a tag builds the AppImage and a source archive in GitHub Actions and attaches them to the release.
+
+## License
+
+MIT

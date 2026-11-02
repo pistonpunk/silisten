@@ -47,6 +47,9 @@ class Backend : public QObject
     Q_PROPERTY(QVariantList languages READ languages NOTIFY changed)
     Q_PROPERTY(QString language READ language NOTIFY changed)
     Q_PROPERTY(QString inputDevice READ inputDevice NOTIFY changed)
+    Q_PROPERTY(QVariantList speechModels READ speechModels NOTIFY changed)
+    Q_PROPERTY(QString speechModel READ speechModel NOTIFY changed)
+    Q_PROPERTY(bool diarization READ diarization NOTIFY changed)
     Q_PROPERTY(int reveal READ reveal NOTIFY changed)
     Q_PROPERTY(int hideRequest READ hideRequest NOTIFY changed)
     Q_PROPERTY(bool visible READ visible WRITE setVisible)
@@ -61,6 +64,7 @@ public:
         QTimer::singleShot(0, this, [this] {
             fetchList("/sources", m_sources);
             fetchList("/languages", m_languages);
+            fetchModels();
         });
     }
 
@@ -72,6 +76,9 @@ public:
     QVariantList languages() const { return m_languages; }
     QString language() const { return m_language; }
     QString inputDevice() const { return m_inputDevice; }
+    QVariantList speechModels() const { return m_speechModels; }
+    QString speechModel() const { return m_speechModel; }
+    bool diarization() const { return m_diarization; }
     int reveal() const { return m_reveal; }
     int hideRequest() const { return m_hide; }
 
@@ -128,6 +135,16 @@ public:
     {
         post("/config", QJsonObject{{"input_device", id}});
     }
+    Q_INVOKABLE void setSpeechModel(const QString &name)
+    {
+        post("/config", QJsonObject{{"speech_model", name}});
+    }
+    Q_INVOKABLE void setDiarization(bool on)
+    {
+        QJsonObject body;
+        body.insert("diarization", on ? QJsonValue("pyannote-campplus") : QJsonValue(QJsonValue::Null));
+        post("/config", body);
+    }
 
 signals:
     void changed();
@@ -147,6 +164,27 @@ private:
             const QByteArray payload = reply->readAll();
             reply->deleteLater();
             apply(payload);
+        });
+    }
+
+    void fetchModels()
+    {
+        QNetworkRequest request(QUrl(QString::fromLatin1(kBase) + "/models"));
+        request.setRawHeader("X-Silisten-Token", m_token.toUtf8());
+        auto *reply = m_nam.get(request);
+        connect(reply, &QNetworkReply::finished, this, [this, reply] {
+            const QByteArray payload = reply->readAll();
+            reply->deleteLater();
+            const QJsonObject root = QJsonDocument::fromJson(payload).object();
+            m_speechModels.clear();
+            for (const QJsonValue &value : root.value("speech").toArray()) {
+                const QJsonObject row = value.toObject();
+                m_speechModels.append(QVariantMap{{"name", row.value("name").toString()},
+                                                  {"label", row.value("label").toString()},
+                                                  {"installed", row.value("installed").toBool()},
+                                                  {"note", row.value("note").toString()}});
+            }
+            emit changed();
         });
     }
 
@@ -191,6 +229,8 @@ private:
 
         const QJsonObject config = object.value("config").toObject();
         m_language = config.value("language").toString();
+        m_speechModel = config.value("speech_model").toString();
+        m_diarization = !config.value("diarization").isNull();
         m_inputDevice = config.value("input_device").toString(QStringLiteral("default"));
 
         if (m_status == "listening") {
@@ -222,6 +262,9 @@ private:
     QVariantList m_levels;
     QVariantList m_sources;
     QVariantList m_languages;
+    QVariantList m_speechModels;
+    QString m_speechModel;
+    bool m_diarization = false;
 };
 
 int main(int argc, char *argv[])

@@ -160,6 +160,37 @@ def cmd_setup(args):
     return setup.run(args)
 
 
+def cmd_models(args):
+    from . import models
+
+    cfg = config.load()
+    if args.action == "install":
+        if not args.kind or not args.name:
+            print("usage: silisten models install <speech|romanian|vad|diarization> <name>", file=sys.stderr)
+            return 2
+        ok = models.install(args.kind, args.name)
+        return 0 if ok else 1
+    if args.action == "profile":
+        if not args.kind:
+            print("profiles: " + ", ".join(models.PROFILES), file=sys.stderr)
+            return 2
+        ok = models.install_profile(cfg, args.kind)
+        config.save(cfg)
+        print(f"profile '{args.kind}' applied")
+        return 0 if ok else 1
+    data = models.status(cfg)
+    print(f"models in {data['dir']}\n")
+    labels = {"speech": "Speech", "romanian": "Romanian", "vad": "Voice detection", "diarization": "Speakers"}
+    for kind, rows in labels.items() and ((k, v) for k, v in labels.items()):
+        print(f"{rows}:")
+        for row in data[kind]:
+            mark = "x" if row["installed"] else " "
+            current = "  <- in use" if data["current"].get(kind) == row["name"] else ""
+            print(f"  [{mark}] {row['name']:<20} {row['note']}{current}")
+        print()
+    return 0
+
+
 def cmd_config(args):
     cfg = config.load()
     for pair in args.set or []:
@@ -187,6 +218,12 @@ def main(argv=None):
     shortcut_parser.add_argument("chord", nargs="?", help="e.g. 'Shift+Tab+Q'")
     setup_parser = sub.add_parser("setup", help="install input rule, autostart and models")
     setup_parser.add_argument("--no-prefetch", action="store_true")
+    setup_parser.add_argument("--profile", choices=["best", "balanced", "fast", "minimal"])
+    setup_parser.add_argument("--yes", action="store_true", help="accept defaults")
+    models_parser = sub.add_parser("models", help="list or install speech models")
+    models_parser.add_argument("action", nargs="?", default="list", choices=["list", "install", "profile"])
+    models_parser.add_argument("kind", nargs="?")
+    models_parser.add_argument("name", nargs="?")
     config_parser = sub.add_parser("config", help="show or set config")
     config_parser.add_argument("--set", action="append", metavar="KEY=VALUE")
     args = parser.parse_args(argv)
@@ -201,6 +238,8 @@ def main(argv=None):
         return cmd_shortcut(args)
     if command == "setup":
         return cmd_setup(args)
+    if command == "models":
+        return cmd_models(args)
     if command == "config":
         return cmd_config(args)
     parser.print_help()

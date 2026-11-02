@@ -14,14 +14,23 @@ DEFAULTS = {
     "shortcut": "Ctrl+Delete",
     "language": None,
     "input_device": "default",
-    "model": "openai/whisper-large-v3",
-    "romanian_model": "FraPiz/whisper-large-v3-turbo-moldovan-romanian",
+    "speech_model": "large-v3",
+    "romanian_model": "fra-piz-turbo",
+    "vad_model": "silero",
+    "diarization": "pyannote-campplus",
     "diarize": True,
     "auto_stop": False,
     "auto_stop_seconds": 1.6,
-    "diarization_dir": None,
+    "vad_threshold": 0.5,
     "diarization_threshold": 0.7,
+    "models_dir": None,
+    "auto_download": True,
     "port": 8756,
+}
+
+ALIASES = {
+    "model": "speech_model",
+    "diarization_dir": "models_dir",
 }
 
 
@@ -31,6 +40,15 @@ def load():
         cfg.update(json.loads(PATH.read_text()))
     except (OSError, ValueError):
         pass
+    for old, new in ALIASES.items():
+        if old in cfg:
+            cfg.setdefault(new, cfg.pop(old))
+    return migrate(cfg)
+
+
+def migrate(cfg):
+    if cfg.get("romanian_model") and "FraPiz" in str(cfg["romanian_model"]):
+        cfg["romanian_model"] = "fra-piz-turbo"
     return cfg
 
 
@@ -57,4 +75,5 @@ def token():
 
 
 def models_dir():
-    return Path(MODELS_DIR)
+    cfg = load()
+    return Path(cfg.get("models_dir") or MODELS_DIR)

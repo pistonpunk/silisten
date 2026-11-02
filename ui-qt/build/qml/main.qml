@@ -15,6 +15,7 @@ Window {
     property int lastHide: -1
     property real revealProgress: 0
     property var levels: []
+    property bool settingsOpen: false
 
     readonly property bool listening: status === "listening"
     readonly property bool thinking: status === "thinking"
@@ -93,7 +94,7 @@ Window {
                 Layout.fillWidth: true
 
                 Label {
-                    text: backend.title
+                    text: root.settingsOpen ? "Settings" : backend.title
                     color: "#f5f5f7"
                     font.pixelSize: 27
                     font.weight: Font.DemiBold
@@ -102,18 +103,28 @@ Window {
                 }
 
                 Button {
-                    text: "✕"
-                    flat: false
+                    display: AbstractButton.IconOnly
+                    icon.name: "emblem-system-symbolic"
+                    icon.width: 18
+                    icon.height: 18
+                    icon.color: root.settingsOpen ? "#ffffff" : "#c9c9cf"
                     implicitWidth: 40
                     implicitHeight: 40
-                    font.pixelSize: 14
-                    contentItem: Text {
-                        text: parent.text
-                        color: "#c9c9cf"
-                        font: parent.font
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
+                    background: Rectangle {
+                        radius: height / 2
+                        color: parent.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.07)
                     }
+                    onClicked: root.settingsOpen = !root.settingsOpen
+                }
+
+                Button {
+                    display: AbstractButton.IconOnly
+                    icon.name: "window-close-symbolic"
+                    icon.width: 16
+                    icon.height: 16
+                    icon.color: "#c9c9cf"
+                    implicitWidth: 40
+                    implicitHeight: 40
                     background: Rectangle {
                         radius: height / 2
                         color: parent.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.07)
@@ -127,7 +138,7 @@ Window {
                 spacing: 0
 
                 ColumnLayout {
-                    visible: root.listening
+                    visible: root.listening && !root.settingsOpen
                     spacing: 12
                     Label {
                         text: backend.timerText
@@ -287,7 +298,7 @@ Window {
                 }
 
                 ColumnLayout {
-                    visible: root.thinking
+                    visible: root.thinking && !root.settingsOpen
                     spacing: 10
                     Label {
                         text: backend.subtitle
@@ -333,6 +344,86 @@ Window {
                 }
 
                 ColumnLayout {
+                    visible: root.settingsOpen
+                    spacing: 12
+
+                    Label {
+                        text: "Speech model"
+                        color: "#8e8e93"
+                        font.pixelSize: 14
+                    }
+
+                    ComboBox {
+                        id: modelBox
+                        Layout.fillWidth: true
+                        implicitHeight: 42
+                        font.pixelSize: 15
+                        model: backend.speechModels
+                        textRole: "label"
+                        valueRole: "name"
+                        onActivated: backend.setSpeechModel(currentValue)
+                        Component.onCompleted: {
+                            const idx = indexOfValue(backend.speechModel)
+                            currentIndex = idx >= 0 ? idx : 0
+                        }
+                        Connections {
+                            target: backend
+                            function onChanged() {
+                                const idx = modelBox.indexOfValue(backend.speechModel)
+                                if (idx >= 0 && idx !== modelBox.currentIndex)
+                                    modelBox.currentIndex = idx
+                            }
+                        }
+                        contentItem: Text {
+                            leftPadding: 16
+                            rightPadding: 34
+                            text: {
+                                const row = modelBox.model[modelBox.currentIndex]
+                                if (!row) return ""
+                                return row.label + (row.installed ? "" : "  (downloads on first use)")
+                            }
+                            color: "#d8d8dc"
+                            font: modelBox.font
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight
+                        }
+                        indicator: Text {
+                            x: modelBox.width - width - 14
+                            y: (modelBox.height - height) / 2
+                            text: "\u2304"
+                            color: "#8e8e93"
+                            font.pixelSize: 16
+                        }
+                        background: Rectangle {
+                            radius: height / 2
+                            color: modelBox.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.10)
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label {
+                            text: "Label speakers"
+                            color: "#f5f5f7"
+                            font.pixelSize: 15
+                            Layout.fillWidth: true
+                        }
+                        Switch {
+                            checked: backend.diarization
+                            onToggled: backend.setDiarization(checked)
+                        }
+                    }
+
+                    Label {
+                        text: "Models download on demand. Run `silisten models` in a terminal to see what is installed."
+                        color: "#6e6e73"
+                        font.pixelSize: 13
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
+                }
+
+                ColumnLayout {
                     visible: root.failed
                     spacing: 8
                     Label {
@@ -350,7 +441,7 @@ Window {
                 }
 
                 ColumnLayout {
-                    visible: root.showingResult
+                    visible: root.showingResult && !root.settingsOpen
                     spacing: 12
 
                     ScrollView {

@@ -1,0 +1,26 @@
+#!/bin/bash
+set -e
+
+HERE="$(dirname "$(readlink -f "$0")")"
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}/silisten"
+VENV="$DATA/venv"
+
+export SILISTEN_APPIMAGE="$HERE"
+
+if [ ! -x "$VENV/bin/python" ]; then
+    if ! command -v python3 >/dev/null; then
+        echo "Silisten needs python3 to run the speech backend." >&2
+        echo "Install it with your package manager, then start Silisten again." >&2
+        exit 1
+    fi
+    echo "First run: creating the speech backend environment in $VENV"
+    python3 -m venv "$VENV"
+    "$VENV/bin/python" -m pip install --quiet --upgrade pip
+    if ! "$VENV/bin/python" -m pip install --quiet -r "$HERE/usr/share/silisten/requirements.txt"; then
+        echo "Could not install the backend dependencies." >&2
+        echo "On AMD GPUs make sure the ROCm wheels in requirements.txt match your hardware." >&2
+        exit 1
+    fi
+fi
+
+exec "$VENV/bin/python" -m silisten start

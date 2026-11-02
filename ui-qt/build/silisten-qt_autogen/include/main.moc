@@ -50,6 +50,10 @@ template <> constexpr inline auto Backend::qt_create_metaobjectdata<qt_meta_tag_
         "code",
         "setInputDevice",
         "id",
+        "setSpeechModel",
+        "name",
+        "setDiarization",
+        "on",
         "status",
         "title",
         "subtitle",
@@ -62,6 +66,9 @@ template <> constexpr inline auto Backend::qt_create_metaobjectdata<qt_meta_tag_
         "languages",
         "language",
         "inputDevice",
+        "speechModels",
+        "speechModel",
+        "diarization",
         "reveal",
         "hideRequest",
         "visible"
@@ -88,36 +95,50 @@ template <> constexpr inline auto Backend::qt_create_metaobjectdata<qt_meta_tag_
         QtMocHelpers::MethodData<void(const QString &)>(11, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QString, 12 },
         }}),
+        // Method 'setSpeechModel'
+        QtMocHelpers::MethodData<void(const QString &)>(13, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QString, 14 },
+        }}),
+        // Method 'setDiarization'
+        QtMocHelpers::MethodData<void(bool)>(15, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 16 },
+        }}),
     };
     QtMocHelpers::UintData qt_properties {
         // property 'status'
-        QtMocHelpers::PropertyData<QString>(13, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
-        // property 'title'
-        QtMocHelpers::PropertyData<QString>(14, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
-        // property 'subtitle'
-        QtMocHelpers::PropertyData<QString>(15, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
-        // property 'text'
-        QtMocHelpers::PropertyData<QString>(16, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
-        // property 'error'
         QtMocHelpers::PropertyData<QString>(17, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
-        // property 'timerText'
+        // property 'title'
         QtMocHelpers::PropertyData<QString>(18, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
+        // property 'subtitle'
+        QtMocHelpers::PropertyData<QString>(19, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
+        // property 'text'
+        QtMocHelpers::PropertyData<QString>(20, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
+        // property 'error'
+        QtMocHelpers::PropertyData<QString>(21, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
+        // property 'timerText'
+        QtMocHelpers::PropertyData<QString>(22, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
         // property 'levels'
-        QtMocHelpers::PropertyData<QVariantList>(19, 0x80000000 | 20, QMC::DefaultPropertyFlags | QMC::EnumOrFlag, 0),
+        QtMocHelpers::PropertyData<QVariantList>(23, 0x80000000 | 24, QMC::DefaultPropertyFlags | QMC::EnumOrFlag, 0),
         // property 'sources'
-        QtMocHelpers::PropertyData<QVariantList>(21, 0x80000000 | 20, QMC::DefaultPropertyFlags | QMC::EnumOrFlag, 0),
+        QtMocHelpers::PropertyData<QVariantList>(25, 0x80000000 | 24, QMC::DefaultPropertyFlags | QMC::EnumOrFlag, 0),
         // property 'languages'
-        QtMocHelpers::PropertyData<QVariantList>(22, 0x80000000 | 20, QMC::DefaultPropertyFlags | QMC::EnumOrFlag, 0),
+        QtMocHelpers::PropertyData<QVariantList>(26, 0x80000000 | 24, QMC::DefaultPropertyFlags | QMC::EnumOrFlag, 0),
         // property 'language'
-        QtMocHelpers::PropertyData<QString>(23, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
+        QtMocHelpers::PropertyData<QString>(27, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
         // property 'inputDevice'
-        QtMocHelpers::PropertyData<QString>(24, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
+        QtMocHelpers::PropertyData<QString>(28, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
+        // property 'speechModels'
+        QtMocHelpers::PropertyData<QVariantList>(29, 0x80000000 | 24, QMC::DefaultPropertyFlags | QMC::EnumOrFlag, 0),
+        // property 'speechModel'
+        QtMocHelpers::PropertyData<QString>(30, QMetaType::QString, QMC::DefaultPropertyFlags, 0),
+        // property 'diarization'
+        QtMocHelpers::PropertyData<bool>(31, QMetaType::Bool, QMC::DefaultPropertyFlags, 0),
         // property 'reveal'
-        QtMocHelpers::PropertyData<int>(25, QMetaType::Int, QMC::DefaultPropertyFlags, 0),
+        QtMocHelpers::PropertyData<int>(32, QMetaType::Int, QMC::DefaultPropertyFlags, 0),
         // property 'hideRequest'
-        QtMocHelpers::PropertyData<int>(26, QMetaType::Int, QMC::DefaultPropertyFlags, 0),
+        QtMocHelpers::PropertyData<int>(33, QMetaType::Int, QMC::DefaultPropertyFlags, 0),
         // property 'visible'
-        QtMocHelpers::PropertyData<bool>(27, QMetaType::Bool, QMC::DefaultPropertyFlags | QMC::Writable | QMC::StdCppSet),
+        QtMocHelpers::PropertyData<bool>(34, QMetaType::Bool, QMC::DefaultPropertyFlags | QMC::Writable | QMC::StdCppSet),
     };
     QtMocHelpers::UintData qt_enums {
     };
@@ -145,6 +166,8 @@ void Backend::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, voi
         case 3: _t->upload((*reinterpret_cast<std::add_pointer_t<QUrl>>(_a[1]))); break;
         case 4: _t->setLanguage((*reinterpret_cast<std::add_pointer_t<QString>>(_a[1]))); break;
         case 5: _t->setInputDevice((*reinterpret_cast<std::add_pointer_t<QString>>(_a[1]))); break;
+        case 6: _t->setSpeechModel((*reinterpret_cast<std::add_pointer_t<QString>>(_a[1]))); break;
+        case 7: _t->setDiarization((*reinterpret_cast<std::add_pointer_t<bool>>(_a[1]))); break;
         default: ;
         }
     }
@@ -166,16 +189,19 @@ void Backend::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, voi
         case 8: *reinterpret_cast<QVariantList*>(_v) = _t->languages(); break;
         case 9: *reinterpret_cast<QString*>(_v) = _t->language(); break;
         case 10: *reinterpret_cast<QString*>(_v) = _t->inputDevice(); break;
-        case 11: *reinterpret_cast<int*>(_v) = _t->reveal(); break;
-        case 12: *reinterpret_cast<int*>(_v) = _t->hideRequest(); break;
-        case 13: *reinterpret_cast<bool*>(_v) = _t->visible(); break;
+        case 11: *reinterpret_cast<QVariantList*>(_v) = _t->speechModels(); break;
+        case 12: *reinterpret_cast<QString*>(_v) = _t->speechModel(); break;
+        case 13: *reinterpret_cast<bool*>(_v) = _t->diarization(); break;
+        case 14: *reinterpret_cast<int*>(_v) = _t->reveal(); break;
+        case 15: *reinterpret_cast<int*>(_v) = _t->hideRequest(); break;
+        case 16: *reinterpret_cast<bool*>(_v) = _t->visible(); break;
         default: break;
         }
     }
     if (_c == QMetaObject::WriteProperty) {
         void *_v = _a[0];
         switch (_id) {
-        case 13: _t->setVisible(*reinterpret_cast<bool*>(_v)); break;
+        case 16: _t->setVisible(*reinterpret_cast<bool*>(_v)); break;
         default: break;
         }
     }
@@ -200,20 +226,20 @@ int Backend::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 6)
+        if (_id < 8)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 6;
+        _id -= 8;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 6)
+        if (_id < 8)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 6;
+        _id -= 8;
     }
     if (_c == QMetaObject::ReadProperty || _c == QMetaObject::WriteProperty
             || _c == QMetaObject::ResetProperty || _c == QMetaObject::BindableProperty
             || _c == QMetaObject::RegisterPropertyMetaType) {
         qt_static_metacall(this, _c, _id, _a);
-        _id -= 14;
+        _id -= 17;
     }
     return _id;
 }
