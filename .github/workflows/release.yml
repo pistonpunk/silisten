@@ -45,6 +45,7 @@ jobs:
           cp ui-qt/build/silisten-qt "$APPDIR/usr/bin/"
           cp -r ui-qt/build/qml "$APPDIR/usr/bin/qml"
           cp -r "$(qmake6 -query QT_INSTALL_QML)" "$APPDIR/usr/qml"
+          cp -a $(qmake6 -query QT_INSTALL_LIBS)/libQt6*.so.6* "$APPDIR/usr/lib/"
           cp -r silisten "$APPDIR/usr/share/silisten/"
           cp requirements.txt "$APPDIR/usr/share/silisten/"
           cp packaging/AppRun "$APPDIR/AppRun"
@@ -95,7 +96,10 @@ jobs:
           for MOD in QtQuick QtQuick/Controls QtQuick/Layouts QtQuick/Dialogs QtQuick/Window; do
             test -d "squashfs-root/usr/qml/$MOD" || { echo "missing QML module $MOD"; exit 1; }
           done
-          echo "QML modules present"
+          for LIB in libQt6Qml.so.6 libQt6QmlWorkerScript.so.6 libQt6Quick.so.6 libQt6QuickControls2.so.6; do
+            find squashfs-root -name "$LIB" | grep -q . || { echo "missing $LIB"; exit 1; }
+          done
+          echo "QML modules and libraries present"
 
       - name: Source archive
         run: |
