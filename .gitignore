@@ -1,4 +1,7 @@
 .venv/
-node_modules/
 __pycache__/
 *.pyc
+ui-qt/build/
+AppDir/
+*.AppImage
+*.tar.gz

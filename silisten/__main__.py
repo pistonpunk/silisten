@@ -216,7 +216,7 @@ def main(argv=None):
     sub.add_parser("toggle", help="start/stop listening; launches the app if needed")
     shortcut_parser = sub.add_parser("shortcut", help="bind the GNOME shortcut")
     shortcut_parser.add_argument("chord", nargs="?", help="e.g. 'Shift+Tab+Q'")
-    setup_parser = sub.add_parser("setup", help="install input rule, autostart and models")
+    setup_parser = sub.add_parser("setup", help="install models, desktop entry and shortcut")
     setup_parser.add_argument("--no-prefetch", action="store_true")
     setup_parser.add_argument("--profile", choices=["best", "balanced", "fast", "minimal"])
     setup_parser.add_argument("--yes", action="store_true", help="accept defaults")
