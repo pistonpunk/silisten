@@ -40,13 +40,13 @@ def load():
         cfg.update(json.loads(PATH.read_text()))
     except (OSError, ValueError):
         pass
-    for old, new in ALIASES.items():
-        if old in cfg:
-            cfg.setdefault(new, cfg.pop(old))
     return migrate(cfg)
 
 
 def migrate(cfg):
+    for old, new in ALIASES.items():
+        if old in cfg:
+            cfg.setdefault(new, cfg.pop(old))
     if cfg.get("romanian_model") and "FraPiz" in str(cfg["romanian_model"]):
         cfg["romanian_model"] = "fra-piz-turbo"
     return cfg
