@@ -307,8 +307,15 @@ int main(int argc, char *argv[])
 
     Backend backend;
 
+    bool demo = false;
+    for (int i = 1; i < argc; i++) {
+        if (qstrcmp(argv[i], "--demo") == 0)
+            demo = true;
+    }
+
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("backend", &backend);
+    engine.rootContext()->setContextProperty("demoMode", demo);
     engine.load(QUrl::fromLocalFile(QCoreApplication::applicationDirPath() + "/qml/main.qml"));
     if (engine.rootObjects().isEmpty())
         return 1;

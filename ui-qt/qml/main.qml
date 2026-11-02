@@ -7,14 +7,41 @@ Window {
     id: root
     visible: false
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
-    color: "transparent"
+    color: root.demo ? "#ffffff" : "transparent"
     width: 660
 
-    property string status: backend.status
+    property bool demo: demoMode
+    property string demoStatus: "listening"
+    property string demoText: ""
+    property string demoClock: "0:00"
+    property string status: demo ? demoStatus : backend.status
     property int lastReveal: -1
     property int lastHide: -1
     property real revealProgress: 0
     property var levels: []
+    property real demoPhase: 0
+
+    Timer {
+        id: script
+        running: root.demo
+        interval: 100
+        repeat: true
+        property real elapsed: 0
+        onTriggered: {
+            elapsed += 0.1
+            const cycle = elapsed % 10.5
+            if (cycle < 3.6) {
+                root.demoStatus = "listening"
+                root.demoClock = "0:0" + Math.min(9, Math.floor(cycle) + 1)
+                root.demoText = ""
+            } else if (cycle < 5.4) {
+                root.demoStatus = "thinking"
+            } else {
+                root.demoStatus = "done"
+                root.demoText = "Speaker 1: Ship it Monday? The build passed everything.\n\nSpeaker 2: Monday. I'll write the release notes tonight."
+            }
+        }
+    }
     property bool settingsOpen: false
 
     readonly property bool listening: status === "listening"
@@ -22,14 +49,14 @@ Window {
     readonly property bool failed: status === "error"
     readonly property bool showingResult: !listening && !thinking && !failed
 
-    height: panel.implicitHeight
+    height: panel.implicitHeight + (root.demo ? 56 : 0)
 
     onStatusChanged: levels = []
     Connections {
         target: backend
         function onChanged() {
             if (backend.levels.length > 0)
-                root.levels = backend.levels
+                root.levels = backend.levels.slice(-600)
             if (root.lastHide !== -1 && backend.hideRequest !== root.lastHide) {
                 root.lastHide = backend.hideRequest
                 root.visible = false
@@ -48,6 +75,8 @@ Window {
     }
 
     onVisibleChanged: backend.visible = visible
+
+    Component.onCompleted: if (root.demo) root.visible = true
 
     NumberAnimation {
         id: entrance
@@ -72,11 +101,12 @@ Window {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
+        anchors.leftMargin: root.demo ? 28 : 0
+        anchors.rightMargin: root.demo ? 28 : 0
+        anchors.bottomMargin: root.demo ? 28 : 0
         implicitHeight: content.implicitHeight + 44
         color: "#000000"
         radius: 28
-        border.width: 2
-        border.color: "#ffffff"
         opacity: revealProgress
         transform: Translate {
             y: (1 - revealProgress) * 40
@@ -88,6 +118,7 @@ Window {
             anchors.bottom: parent.bottom
             height: 28
             color: "#000000"
+            visible: !root.demo
         }
 
         ColumnLayout {
@@ -100,7 +131,11 @@ Window {
                 Layout.fillWidth: true
 
                 Label {
-                    text: root.settingsOpen ? "Settings" : backend.title
+                    text: root.settingsOpen ? "Settings"
+                        : root.demo ? (root.demoStatus === "listening" ? "Listening"
+                                     : root.demoStatus === "thinking" ? "Transcribing"
+                                     : root.demoStatus === "done" ? "Transcription" : "Silisten")
+                        : backend.title
                     color: "#f5f5f7"
                     font.pixelSize: 27
                     font.weight: Font.DemiBold
@@ -167,7 +202,7 @@ Window {
                     visible: root.listening && !root.settingsOpen
                     spacing: 12
                     Label {
-                        text: backend.timerText
+                        text: root.demo ? root.demoClock : backend.timerText
                         color: "#f5f5f7"
                         font.pixelSize: 46
                         font.weight: Font.Medium
@@ -187,9 +222,21 @@ Window {
                             const mid = height / 2
                             ctx.fillStyle = "#f5f5f7"
                             const data = root.levels
+                            const ph = root.demoPhase
                             for (let i = 0; i < bars; i++) {
                                 let v = 0
-                                if (data.length > 0) {
+                                if (root.demo) {
+                                    const noise = (n) => {
+                                        const x = Math.sin(n * 127.1 + 311.7) * 43758.5453
+                                        return x - Math.floor(x)
+                                    }
+                                    const tick = Math.floor(ph * 26)
+                                    const envelope = 0.25 + 0.75 * Math.max(0, Math.sin(ph * 0.8 + 1.1))
+                                    const body = noise(i * 2.7 + tick * 0.61)
+                                    const shaped = Math.pow(body, 2.1)
+                                    const spike = noise(i * 0.9 + tick * 1.37) > 0.94 ? 0.45 : 0.0
+                                    v = Math.min(1, envelope * (shaped + spike))
+                                } else if (data.length > 0) {
                                     const from = Math.floor((i / bars) * data.length)
                                     const to = Math.max(from + 1, Math.floor(((i + 1) / bars) * data.length))
                                     let sum = 0, n = 0
@@ -342,7 +389,7 @@ Window {
                     visible: root.thinking && !root.settingsOpen
                     spacing: 10
                     Label {
-                        text: backend.subtitle
+                        text: root.demo ? "Turning your voice into text" : backend.subtitle
                         color: "#8e8e93"
                         font.pixelSize: 15
                     }
@@ -358,10 +405,16 @@ Window {
                             ctx.fillStyle = "rgba(255,255,255,0.10)"
                             ctx.fillRect(0, 0, width, height)
                             ctx.save()
+                            function hueRgb(h) {
+                                const i = Math.floor(h * 6), f = h * 6 - i
+                                const q = 1 - f, t = f
+                                const m = [ [1, t, 0], [q, 1, 0], [0, 1, t], [0, q, 1], [t, 0, 1], [1, 0, q] ][i % 6]
+                                return "rgb(" + Math.round(m[0] * 255) + "," + Math.round(m[1] * 255) + "," + Math.round(m[2] * 255) + ")"
+                            }
                             for (let i = 0; i <= 24; i++) {
                                 const t = i / 24
                                 const hue = (phase + t * 0.85) % 1
-                                ctx.fillStyle = "hsl(" + (hue * 360) + ", 62%, 60%)"
+                                ctx.fillStyle = hueRgb(hue)
                                 ctx.fillRect((t - 0.045) * width, 0, width / 24 + 2, height)
                             }
                             const sheenX = ((phase * 2.4) % 1) * (width + 200) - 200
@@ -495,13 +548,13 @@ Window {
 
                         TextArea {
                             id: transcript
-                            text: backend.text.length ? backend.text : "No speech detected. Try again."
+                            text: (root.demo ? root.demoText : backend.text).length ? (root.demo ? root.demoText : backend.text) : "No speech detected. Try again."
                             readOnly: true
                             selectByMouse: true
                             selectionColor: "#3a5fb8"
                             selectedTextColor: "#ffffff"
                             wrapMode: TextArea.Wrap
-                            color: backend.text.length ? "#f5f5f7" : "#6e6e73"
+                            color: (root.demo ? root.demoText : backend.text).length ? "#f5f5f7" : "#6e6e73"
                             font.pixelSize: 18
                             background: null
                             leftPadding: 0
@@ -527,7 +580,7 @@ Window {
                             icon.color: "#000000"
                             implicitWidth: 54
                             implicitHeight: 42
-                            enabled: backend.text.length > 0
+                            enabled: (root.demo ? root.demoText : backend.text).length > 0
                             opacity: enabled ? 1 : 0.4
                             background: Rectangle {
                                 radius: height / 2
@@ -537,7 +590,7 @@ Window {
                                     Behavior on color { ColorAnimation { duration: 120 } }
                             }
                             onClicked: {
-                                textCopied.text = backend.text
+                                textCopied.text = root.demo ? root.demoText : backend.text
                                 textCopied.selectAll()
                                 textCopied.copy()
                             }
