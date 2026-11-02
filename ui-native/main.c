@@ -176,7 +176,7 @@ static char current_page[16] = "";
 static int target_height(void) {
     const char *page = current_page[0] ? current_page : "result";
     int h;
-    if (strcmp(page, "listen") == 0) return 322;
+    if (strcmp(page, "listen") == 0) return 352;
     if (strcmp(page, "work") == 0) return 142;
     if (strcmp(page, "error") == 0) return 250;
 
@@ -189,7 +189,7 @@ static int target_height(void) {
         if (text_h < 28) text_h = 28;
         if (text_h > 260) text_h = 260;
     }
-    h = text_h + 152;
+    h = text_h + 190;
     if (h < 210) h = 210;
     if (h > 420) h = 420;
     return h;
@@ -457,6 +457,17 @@ static void on_lang_changed(GtkComboBox *c, gpointer d) {
     g_object_unref(jb);
 }
 
+static gboolean scroll_top_cb(gpointer d) {
+    (void)d;
+    GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(A.transcript_view));
+    GtkTextIter start;
+    gtk_text_buffer_get_start_iter(buf, &start);
+    gtk_text_buffer_place_cursor(buf, &start);
+    GtkTextMark *mark = gtk_text_buffer_get_insert(buf);
+    gtk_text_view_scroll_to_mark(GTK_TEXT_VIEW(A.transcript_view), mark, 0.0, TRUE, 0.0, 0.0);
+    return G_SOURCE_REMOVE;
+}
+
 static void apply_state(const char *json) {
     JsonParser *p = json_parser_new();
     if (!json_parser_load_from_data(p, json, -1, NULL)) {
@@ -524,9 +535,7 @@ static void apply_state(const char *json) {
         if (g_strcmp0(gtk_label_get_text(GTK_LABEL(A.transcript)), text) != 0) {
             gtk_label_set_text(GTK_LABEL(A.transcript), text);
             gtk_text_buffer_set_text(buf, text, -1);
-            GtkTextIter start;
-            gtk_text_buffer_get_start_iter(buf, &start);
-            gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(A.transcript_view), &start, 0.0, FALSE, 0.0, 0.0);
+            g_idle_add(scroll_top_cb, NULL);
         }
         gtk_style_context_remove_class(gtk_widget_get_style_context(A.transcript), "empty");
         gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(A.scroll), 240);
@@ -944,7 +953,7 @@ static GtkWidget *pane_result(void) {
     gtk_box_pack_end(GTK_BOX(row), file, FALSE, FALSE, 0);
 
     gtk_widget_set_margin_bottom(row, 2);
-    gtk_widget_set_margin_top(row, 6);
+    gtk_widget_set_margin_top(row, 20);
     gtk_box_pack_start(GTK_BOX(box), row, FALSE, FALSE, 0);
     return box;
 }
@@ -998,11 +1007,8 @@ static void build(void) {
     g_signal_connect(A.window, "key-press-event", G_CALLBACK(on_key), NULL);
 
     A.root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-    gtk_container_set_border_width(GTK_CONTAINER(A.root), 0);
-    gtk_widget_set_margin_start(A.root, 20);
-    gtk_widget_set_margin_end(A.root, 20);
-    gtk_widget_set_margin_top(A.root, 14);
-    gtk_widget_set_margin_bottom(A.root, 6);
+    gtk_container_set_border_width(GTK_CONTAINER(A.root), 20);
+    gtk_widget_set_margin_top(gtk_widget_get_parent(A.root) ? A.title : A.root, 0);
     gtk_widget_set_margin_top(A.root, 4);
     gtk_widget_set_margin_bottom(A.root, 12);
     gtk_widget_set_size_request(A.root, WIDTH - 40, -1);
