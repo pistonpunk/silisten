@@ -28,7 +28,7 @@ jobs:
             qml6-module-qtquick-controls qml6-module-qtquick-layouts \
             qml6-module-qtquick-dialogs qml6-module-qtquick-window \
             qml6-module-qtquick-templates qml6-module-qtqml-workerscript \
-            qml6-module-qtquick-shapes \
+            qml6-module-qtquick-shapes adwaita-icon-theme \
             libgl1-mesa-dev
 
       - name: Build the Qt UI
@@ -47,6 +47,8 @@ jobs:
           cp -r "$(qmake6 -query QT_INSTALL_QML)" "$APPDIR/usr/qml"
           mkdir -p "$APPDIR/usr/lib"
           cp -a $(qmake6 -query QT_INSTALL_LIBS)/libQt6*.so.6* "$APPDIR/usr/lib/"
+          mkdir -p "$APPDIR/usr/share/icons"
+          cp -r /usr/share/icons/Adwaita "$APPDIR/usr/share/icons/"
           cp -r silisten "$APPDIR/usr/share/silisten/"
           cp requirements.txt "$APPDIR/usr/share/silisten/"
           cp packaging/AppRun "$APPDIR/AppRun"
@@ -97,6 +99,7 @@ jobs:
           for MOD in QtQuick QtQuick/Controls QtQuick/Layouts QtQuick/Dialogs QtQuick/Window; do
             test -d "squashfs-root/usr/qml/$MOD" || { echo "missing QML module $MOD"; exit 1; }
           done
+          test -d squashfs-root/usr/share/icons/Adwaita || { echo "missing icon theme"; exit 1; }
           for LIB in libQt6Qml.so.6 libQt6QmlWorkerScript.so.6 libQt6Quick.so.6 libQt6QuickControls2.so.6; do
             find squashfs-root -name "$LIB" | grep -q . || { echo "missing $LIB"; exit 1; }
           done
