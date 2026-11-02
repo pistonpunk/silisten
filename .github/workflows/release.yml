@@ -8,15 +8,20 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    container: ubuntu:24.04
     permissions:
       contents: write
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      APPIMAGE_EXTRACT_AND_RUN: "1"
     steps:
       - uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git file \
             build-essential cmake \
             qt6-base-dev qt6-declarative-dev qt6-wayland liblayershellqtinterface-dev \
             qt6-base-dev-tools qt6-declarative-dev-tools \
@@ -24,7 +29,7 @@ jobs:
             qml6-module-qtquick-dialogs qml6-module-qtquick-window \
             qml6-module-qtquick-templates qml6-module-qtqml-workerscript \
             qml6-module-qtquick-shapes \
-            libgl1-mesa-dev libfuse2
+            libgl1-mesa-dev
 
       - name: Build the Qt UI
         run: |
@@ -62,9 +67,10 @@ jobs:
         env:
           QML_SOURCES_PATHS: ${{ github.workspace }}/ui-qt/qml
           EXTRA_QT_MODULES: core;gui;qml;quick;quickcontrols2;network
-          QMAKE: /usr/lib/qt6/bin/qmake
+          QMAKE: /usr/lib/qt6/bin/qmake6
           QT_SELECT: qt6
           PATH: /usr/lib/qt6/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+          QML2_IMPORT_PATH: /usr/lib/x86_64-linux-gnu/qt6/qml
         run: |
           ./linuxdeploy --appdir AppDir \
             --executable AppDir/usr/bin/silisten-qt \
