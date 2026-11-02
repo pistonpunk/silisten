@@ -262,6 +262,7 @@ static void on_close(GtkWidget *b, gpointer d) {
     (void)b;
     (void)d;
     gtk_widget_hide(A.window);
+    post("/ui", "{\"visible\":false}");
 }
 
 static gboolean on_key(GtkWidget *w, GdkEventKey *e, gpointer d) {
@@ -480,7 +481,10 @@ static void apply_state(const char *json) {
 
 static gboolean on_tick(gpointer d) {
     (void)d;
-    GString *r = http_request("/state?levels=1", NULL);
+    char path[64];
+    int vis = gtk_widget_get_visible(A.window) ? 1 : 0;
+    snprintf(path, sizeof path, "/state?levels=1&visible=%d", vis);
+    GString *r = http_request(path, NULL);
     if (r->len > 0) apply_state(r->str);
     g_string_free(r, TRUE);
     gtk_widget_queue_draw(A.wave);
