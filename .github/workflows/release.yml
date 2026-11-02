@@ -20,6 +20,10 @@ jobs:
             build-essential cmake \
             qt6-base-dev qt6-declarative-dev qt6-wayland liblayershellqtinterface-dev \
             qt6-base-dev-tools qt6-declarative-dev-tools \
+            qml6-module-qtquick-controls qml6-module-qtquick-layouts \
+            qml6-module-qtquick-dialogs qml6-module-qtquick-window \
+            qml6-module-qtquick-templates qml6-module-qtqml-workerscript \
+            qml6-module-qtquick-shapes \
             libgl1-mesa-dev libfuse2
 
       - name: Build the Qt UI
@@ -35,6 +39,7 @@ jobs:
 
           cp ui-qt/build/silisten-qt "$APPDIR/usr/bin/"
           cp -r ui-qt/build/qml "$APPDIR/usr/bin/qml"
+          cp -r "$(qmake6 -query QT_INSTALL_QML)" "$APPDIR/usr/qml"
           cp -r silisten "$APPDIR/usr/share/silisten/"
           cp requirements.txt "$APPDIR/usr/share/silisten/"
           cp packaging/AppRun "$APPDIR/AppRun"
@@ -81,6 +86,10 @@ jobs:
           fi
           VERSION=$(strings "$LIBDIR/libQt6Core.so.6" | grep -oE "^6\.[0-9]+\.[0-9]+$" | head -1)
           echo "Qt $VERSION resolves cleanly"
+          for MOD in QtQuick QtQuick/Controls QtQuick/Layouts QtQuick/Dialogs QtQuick/Window; do
+            test -d "squashfs-root/usr/qml/$MOD" || { echo "missing QML module $MOD"; exit 1; }
+          done
+          echo "QML modules present"
 
       - name: Source archive
         run: |

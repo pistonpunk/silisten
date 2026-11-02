@@ -6,6 +6,7 @@ DATA="${XDG_DATA_HOME:-$HOME/.local/share}/silisten"
 VENV="$DATA/venv"
 
 export SILISTEN_APPIMAGE="$HERE"
+export QML2_IMPORT_PATH="$HERE/usr/qml${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
 
 if [ ! -x "$VENV/bin/python" ]; then
     if ! command -v python3 >/dev/null; then
