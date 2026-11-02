@@ -110,13 +110,13 @@ def _kill_stale_ui():
     import signal
 
     try:
-        out = subprocess.run(["pgrep", "-f", "silisten-ui"], capture_output=True, text=True, timeout=3)
+        out = subprocess.run(["pgrep", "-f", "silisten-qt"], capture_output=True, text=True, timeout=3)
     except (OSError, subprocess.SubprocessError):
         return
     for pid in out.stdout.split():
         try:
             with open(f"/proc/{pid}/comm") as handle:
-                if "silisten-ui" not in handle.read():
+                if "silisten-qt" not in handle.read():
                     continue
             os.kill(int(pid), signal.SIGTERM)
         except (OSError, ValueError):
@@ -128,14 +128,14 @@ def cmd_start(_args):
     owns_backend = not _already_running()
     if owns_backend:
         cfg, httpd = _boot()
-    native = ROOT / "ui-native" / "silisten-ui"
-    if not native.exists():
+    ui = ROOT / "ui-qt" / "build" / "silisten-qt"
+    if not ui.exists():
         print("ui not built - run ./install.sh", file=sys.stderr)
         if owns_backend:
             httpd.shutdown()
         return 1
     _kill_stale_ui()
-    argv, cwd = [str(native)], str(ROOT / "ui-native")
+    argv, cwd = [str(ui)], str(ROOT / "ui-qt")
     env = dict(os.environ)
     env["SILISTEN_URL"] = f"http://127.0.0.1:{cfg['port']}"
     env["SILISTEN_TOKEN"] = config.token()

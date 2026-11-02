@@ -4,8 +4,8 @@ cd "$(dirname "$0")"
 
 echo "== Silisten =="
 
-for cmd in ffmpeg arecord cc pkg-config python3; do
-  command -v "$cmd" >/dev/null || { echo "missing '$cmd' - sudo apt install ffmpeg alsa-utils build-essential pkg-config libgtk-3-dev libjson-glib-dev libcurl4-openssl-dev"; exit 1; }
+for cmd in ffmpeg arecord cmake g++ python3; do
+  command -v "$cmd" >/dev/null || { echo "missing '$cmd' - sudo apt install ffmpeg alsa-utils cmake g++ qt6-base-dev qt6-declarative-dev qt6-wayland liblayershellqtinterface-dev"; exit 1; }
 done
 
 if [ ! -x .venv/bin/python ]; then
@@ -16,8 +16,9 @@ fi
 echo "-- python deps (ROCm torch wheels are a few hundred MB)"
 .venv/bin/python -m pip install -r requirements.txt
 
-echo "-- native ui"
-make -C ui-native
+echo "-- qt ui"
+cmake -S ui-qt -B ui-qt/build -DCMAKE_BUILD_TYPE=Release
+cmake --build ui-qt/build -j"$(nproc)"
 
 chmod +x bin/silisten
 exec .venv/bin/python -m silisten setup "$@"

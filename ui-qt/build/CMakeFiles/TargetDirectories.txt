@@ -1,0 +1,5 @@
+/home/daniel/Work/Silisten/ui-qt/build/CMakeFiles/silisten-qt.dir
+/home/daniel/Work/Silisten/ui-qt/build/CMakeFiles/edit_cache.dir
+/home/daniel/Work/Silisten/ui-qt/build/CMakeFiles/rebuild_cache.dir
+/home/daniel/Work/Silisten/ui-qt/build/CMakeFiles/silisten-qt_autogen_timestamp_deps.dir
+/home/daniel/Work/Silisten/ui-qt/build/CMakeFiles/silisten-qt_autogen.dir

@@ -13,7 +13,11 @@ cd ~/Work/Silisten
 
 `install.sh` creates the venv, installs the ROCm torch wheels and sherpa-onnx, fetches whisper-large-v3 (~3 GB) and the diarization models, builds the native GTK3 notch (`ui-native/`), links the `silisten` command, and adds the GNOME shortcut.
 
-The UI is a single small C/GTK3 binary — no Electron, no browser. It starts in well under a second.
+The UI is a single Qt 6 / QML binary (`ui-qt/`) — no Electron, no browser.
+
+It picks its windowing backend at startup:
+- **layer-shell** (KDE Plasma, Hyprland, sway, river, labwc, Wayfire) — true bottom-edge overlay with keyboard interactivity.
+- **X11/XWayland** (GNOME, XFCE and anything else) — a frameless always-on-top window positioned bottom-centre.
 
 Start it with `silisten start`, or press the shortcut. Right now it starts on demand; add the app menu entry to your GNOME autostart if you want it always running.
 
@@ -72,7 +76,7 @@ Silero VAD gates every transcription: if nothing is detected as speech, no text 
 
 - Linux with a PipeWire or ALSA microphone, `ffmpeg`, `arecord`
 - AMD ROCm GPU (tested on RX 9070 XT / gfx1201) or CPU fallback
-- Python 3.14, GTK3 (`libgtk-3-dev`, `libjson-glib-dev`, `libcurl4-openssl-dev`)
+- Python 3.14, Qt 6 (`qt6-base-dev`, `qt6-declarative-dev`, `qt6-wayland`, `liblayershellqtinterface-dev`, `cmake`, `g++`)
 
 The backend listens on `127.0.0.1:8756` and requires the token in `~/.config/silisten/token`, so other local pages can't drive it.
 
