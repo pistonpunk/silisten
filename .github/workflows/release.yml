@@ -50,6 +50,15 @@ jobs:
           curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x linuxdeploy linuxdeploy-plugin-qt appimagetool
 
+      - name: Check the AppImage is self-consistent
+        run: |
+          APPIMAGE=$(ls Silisten-*-x86_64.AppImage)
+          ./"$APPIMAGE" --appimage-extract > /dev/null
+          CORE=$(ls squashfs-root/usr/lib*/libQt6Core.so.6 2>/dev/null | head -1)
+          echo "bundled core: $CORE"
+          ldd squashfs-root/usr/bin/silisten-qt | grep -q "not found" && { echo "missing libraries"; exit 1; }
+          echo "all linked libraries resolved"
+
       - name: Version
         run: echo "VERSION=$(echo "${GITHUB_REF_NAME#v}" | tr -cd '0-9A-Za-z._-')" >> "$GITHUB_ENV"
 
@@ -59,6 +68,7 @@ jobs:
           EXTRA_QT_MODULES: core;gui;qml;quick;quickcontrols2;network
           QMAKE: /usr/lib/qt6/bin/qmake
           QT_SELECT: qt6
+          PATH: /usr/lib/qt6/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         run: |
           ./linuxdeploy --appdir AppDir \
             --executable AppDir/usr/bin/silisten-qt \
