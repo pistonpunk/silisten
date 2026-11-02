@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #define BASE "http://127.0.0.1:8756"
@@ -170,10 +172,10 @@ static char current_page[16] = "";
 static int target_height(void) {
     const char *page = current_page[0] ? current_page : "result";
     int h;
-    if (strcmp(page, "listen") == 0) h = 198;
-    else if (strcmp(page, "work") == 0) h = 150;
-    else if (strcmp(page, "error") == 0) h = 190;
-    else h = 420;
+    if (strcmp(page, "listen") == 0) h = 322;
+    else if (strcmp(page, "work") == 0) h = 210;
+    else if (strcmp(page, "error") == 0) h = 250;
+    else h = 430;
     return h;
 }
 
@@ -882,8 +884,26 @@ static void render_png(const char *path) {
     fprintf(stderr, "[render] %s %dx%d (root at %d,%d)\n", path, w, h, al.x, al.y);
 }
 
+static int take_lock(void) {
+    const char *runtime = getenv("XDG_RUNTIME_DIR");
+    char path[512];
+    snprintf(path, sizeof path, "%s/silisten-ui.lock", runtime ? runtime : "/tmp");
+    int fd = open(path, O_CREAT | O_RDWR, 0600);
+    if (fd < 0) return -1;
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
 int main(int argc, char **argv) {
     g_setenv("GDK_BACKEND", "x11", TRUE);
+    int lock_fd = take_lock();
+    if (lock_fd < 0) {
+        fprintf(stderr, "silisten-ui already running\n");
+        return 0;
+    }
     gtk_init(&argc, &argv);
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL_H = curl_easy_init();
