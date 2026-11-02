@@ -28,7 +28,7 @@ jobs:
             qml6-module-qtquick-controls qml6-module-qtquick-layouts \
             qml6-module-qtquick-dialogs qml6-module-qtquick-window \
             qml6-module-qtquick-templates qml6-module-qtqml-workerscript \
-            qml6-module-qtquick-shapes adwaita-icon-theme \
+            qml6-module-qtquick-shapes adwaita-icon-theme libqt6svg6 \
             libgl1-mesa-dev
 
       - name: Build the Qt UI
@@ -100,6 +100,7 @@ jobs:
             test -d "squashfs-root/usr/qml/$MOD" || { echo "missing QML module $MOD"; exit 1; }
           done
           test -d squashfs-root/usr/share/icons/Adwaita || { echo "missing icon theme"; exit 1; }
+          find squashfs-root -name 'libqsvg*.so' | grep -q . || { echo "missing Qt SVG plugin"; exit 1; }
           for LIB in libQt6Qml.so.6 libQt6QmlWorkerScript.so.6 libQt6Quick.so.6 libQt6QuickControls2.so.6; do
             find squashfs-root -name "$LIB" | grep -q . || { echo "missing $LIB"; exit 1; }
           done
