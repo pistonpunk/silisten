@@ -100,12 +100,13 @@ jobs:
       - name: Source archive
         run: |
           NAME="Silisten-${VERSION:-dev}-source"
+          rm -rf "/tmp/$NAME"
           mkdir -p "/tmp/$NAME"
-          tar -c .             --exclude=.git --exclude=.venv --exclude=AppDir --exclude=ui-qt/build \
-            --exclude='*.AppImage' --exclude='*.tar.gz' --exclude='*.zip' --exclude=__pycache__ \
-            | tar -x -C "/tmp/$NAME"
+          tar -c --exclude=.git --exclude=.venv --exclude=AppDir --exclude=ui-qt/build \
+                 --exclude='*.AppImage' --exclude='*.tar.gz' --exclude='*.zip' \
+                 --exclude=__pycache__ . | tar -x -C "/tmp/$NAME"
           tar -czf "$NAME.tar.gz" -C /tmp "$NAME"
-          zip -qr "$NAME.zip" "$NAME" -x '*/.git/*'
+          (cd /tmp && zip -qr "$OLDPWD/$NAME.zip" "$NAME")
           ls -la "$NAME.tar.gz" "$NAME.zip"
 
       - name: Publish release
