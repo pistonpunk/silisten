@@ -59,10 +59,10 @@ jobs:
 
       - name: Fetch AppImage tools
         run: |
-          curl -sSL -o linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          curl -sSL -o linuxdeploy-plugin-qt https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x linuxdeploy linuxdeploy-plugin-qt appimagetool
+          curl -sSL -o /usr/local/bin/linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -sSL -o /usr/local/bin/linuxdeploy-plugin-qt https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          curl -sSL -o /usr/local/bin/appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-qt /usr/local/bin/appimagetool
 
       - name: Version
         run: echo "VERSION=$(echo "${GITHUB_REF_NAME#v}" | tr -cd '0-9A-Za-z._-')" >> "$GITHUB_ENV"
@@ -76,17 +76,21 @@ jobs:
           PATH: /usr/lib/qt6/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
           QML2_IMPORT_PATH: /usr/lib/x86_64-linux-gnu/qt6/qml
         run: |
-          ./linuxdeploy --appdir AppDir \
+          linuxdeploy --appdir AppDir \
             --executable AppDir/usr/bin/silisten-qt \
             --plugin qt \
             --desktop-file AppDir/usr/share/applications/silisten.desktop \
             --icon-file AppDir/silisten.svg
-          ./appimagetool AppDir "Silisten-${VERSION:-dev}-x86_64.AppImage"
+          appimagetool AppDir "Silisten-${VERSION:-dev}-x86_64.AppImage"
 
       - name: Check the AppImage is self-consistent
         run: |
           APPIMAGE=$(ls Silisten-*-x86_64.AppImage)
-          ./"$APPIMAGE" --appimage-extract > /dev/null
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          WORK=$(mktemp -d)
+          ( cd "$WORK" && "/${APPIMAGE}" --appimage-extract > /dev/null )
+          cp -r "$WORK/squashfs-root" ./squashfs-root
+          rm -rf "$WORK"
           LIBDIR="$(dirname "$(find squashfs-root -name 'libQt6Core.so.6' | head -1)")"
           echo "bundled Qt in $LIBDIR"
           if LD_LIBRARY_PATH="$LIBDIR" ldd squashfs-root/usr/bin/silisten-qt | grep -q "not found"; then
@@ -113,6 +117,7 @@ jobs:
           mkdir -p "/tmp/$NAME"
           tar -c --exclude=.git --exclude=.venv --exclude=AppDir --exclude=ui-qt/build \
                  --exclude='*.AppImage' --exclude='*.tar.gz' --exclude='*.zip' \
+                 --exclude=squashfs-root --exclude=linuxdeploy --exclude=appimagetool \
                  --exclude=__pycache__ . | tar -x -C "/tmp/$NAME"
           tar -czf "$NAME.tar.gz" -C /tmp "$NAME"
           (cd /tmp && zip -qr "$OLDPWD/$NAME.zip" "$NAME")
