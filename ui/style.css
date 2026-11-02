@@ -136,17 +136,6 @@ body {
   white-space: nowrap;
 }
 
-#equalizer {
-  width: 64px;
-  height: 26px;
-  flex: none;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-#notch[data-state="listening"] #equalizer {
-  opacity: 1;
-}
 
 .tools {
   display: flex;
@@ -244,23 +233,21 @@ select:focus-visible {
   vertical-align: 1px;
 }
 
-.partial {
-  margin: 16px 0 0;
-  max-height: 132px;
-  overflow: hidden;
-  font-size: 21px;
-  line-height: 1.45;
-  letter-spacing: -0.017em;
+.rec-time {
+  margin-top: 10px;
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
   color: var(--text);
-  font-weight: 420;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 
-.partial.empty {
-  color: var(--text-3);
-  font-weight: 400;
+#waveform {
+  display: block;
+  width: 100%;
+  height: 76px;
+  margin: 14px 0 4px;
 }
 
 #pane-working {

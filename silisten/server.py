@@ -26,8 +26,6 @@ class App:
         self.reveal = 0
         self.append = False
         self.duration = 0.0
-        self._last_partial_bytes = -1
-        self._partial_busy = False
         self._heard_speech = False
 
     def boot(self):
@@ -55,11 +53,10 @@ class App:
             self._heard_speech = False
             self.status = "listening"
             self.reveal += 1
-            self._last_partial_bytes = -1
         recorder = audio.Recorder(self.cfg.get("input_device") or "default")
         self.recorder = recorder
         recorder.start()
-        threading.Thread(target=self._partial_loop, args=(recorder,), daemon=True).start()
+        threading.Thread(target=self._monitor, args=(recorder,), daemon=True).start()
 
     def stop_recording(self):
         recorder = self.recorder
@@ -73,49 +70,27 @@ class App:
         self.duration = data.size / audio.RATE
         threading.Thread(target=self._finish_listening, args=(data,), daemon=True).start()
 
-    def _maybe_auto_stop(self, recorder, data, spans):
-        if not self.cfg.get("auto_stop", True) or not self._heard_speech:
-            return
-        if self._partial_busy or recorder.duration < 0.5:
-            return
+    def _monitor(self, recorder):
+        while not self._stop_partials(recorder):
+            time.sleep(0.35)
+            if self._stop_partials(recorder):
+                break
+            if not self.cfg.get("auto_stop"):
+                continue
+            data = recorder.audio()
+            if data.size < audio.RATE * 0.5:
+                continue
+            spans = self.engine.speech_spans(data)
+            if spans:
+                self._heard_speech = True
+            if self._heard_speech and self._trailing_silence(data, spans):
+                self.stop_recording()
+                return
+
+    def _trailing_silence(self, data, spans):
         pause = float(self.cfg.get("auto_stop_seconds", 1.6)) * audio.RATE
         trailing = data.size - spans[-1][1] if spans else data.size
-        if trailing >= pause:
-            self.stop_recording()
-
-    def _partial_loop(self, recorder):
-        while not self._stop_partials(recorder):
-            time.sleep(1.1)
-            if self._stop_partials(recorder) or self._partial_busy:
-                continue
-            if recorder.duration < 0.8 or recorder.duration > 28:
-                continue
-            if recorder.nbytes == self._last_partial_bytes:
-                continue
-            self._last_partial_bytes = recorder.nbytes
-            data = recorder.audio()
-            self._partial_busy = True
-            try:
-                spans = self.engine.speech_spans(data)
-                if spans:
-                    self._heard_speech = True
-                self._maybe_auto_stop(recorder, data, spans)
-                if not spans:
-                    self._last_partial_bytes = -1
-                    continue
-                data = data[max(0, spans[0][0] - int(0.15 * audio.RATE)):]
-                result = self.engine.transcribe(data, language=self.cfg.get("language"))
-                text = result["text"]
-                if not text:
-                    continue
-                with self.lock:
-                    if self.status == "listening":
-                        self.partial = text
-                        self.duration = recorder.duration
-            except Exception:
-                pass
-            finally:
-                self._partial_busy = False
+        return trailing >= pause
 
     def _stop_partials(self, recorder):
         return self.status != "listening" or self.recorder is not recorder
@@ -247,7 +222,7 @@ class App:
                 "status": self.status,
                 "text": self.text,
                 "segments": self.segments,
-                "partial": self.partial,
+                "partial": "",
                 "error": self.error,
                 "progress": self.progress,
                 "phase": self.phase,

@@ -1,10 +1,10 @@
 const $ = (id) => document.getElementById(id);
 const notch = $('notch');
-const eq = $('equalizer');
-const eqCtx = eq.getContext('2d');
+const wave = $('waveform');
+const waveCtx = wave.getContext('2d');
+let levels = [];
+let lastLevelAt = 0;
 
-const BARS = 5;
-const history = new Float32Array(BARS * 2);
 
 let state = null;
 let settingsOpen = false;
@@ -49,13 +49,17 @@ function render(s) {
     error: 'Something went wrong'
   }[s.status] || 'Silisten';
 
-  $('timer').textContent = s.status === 'listening' ? formatTime(s.duration || 0) : '';
+  $('timer').textContent = s.status === 'listening' ? '' : '';
 
   if (s.status === 'listening') {
-    const text = (s.partial || '').trim();
-    const partial = $('partial');
-    partial.textContent = text || 'Speak whenever you\'re ready';
-    partial.classList.toggle('empty', !text);
+    if (s.duration < 0.25) levels = [];
+    $('rec-time').textContent = formatTime(s.duration || 0);
+    const now = performance.now();
+    if (now - lastLevelAt > 33) {
+      lastLevelAt = now;
+      levels.push(Math.min(1, Math.max(0, s.level || 0)));
+      if (levels.length > 6000) levels = levels.slice(-6000);
+    }
   }
 
   if (s.status === 'thinking') {
@@ -501,41 +505,49 @@ new ResizeObserver(() => {
   window.silisten.layout(height);
 }).observe(notch);
 
-const EQ_CSS_WIDTH = 64;
-const EQ_CSS_HEIGHT = 26;
-eq.width = Math.round(EQ_CSS_WIDTH * (window.devicePixelRatio || 1));
-eq.height = Math.round(EQ_CSS_HEIGHT * (window.devicePixelRatio || 1));
+const WAVE_BARS = 128;
+const WAVE_HEIGHT = 76;
 
-function drawEqualizer() {
+function drawWaveform() {
   const listening = state && state.status === 'listening';
   const dpr = window.devicePixelRatio || 1;
+  const width = wave.clientWidth || 640;
+  const height = WAVE_HEIGHT;
 
-  for (let i = 0; i < history.length - 1; i++) history[i] = history[i + 1];
-  const live = listening ? Math.min(1, (state.level || 0) * 1.8) : 0;
-  history[history.length - 1] = Math.min(1, live * (0.55 + Math.random() * 0.85));
-
-  eqCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  eqCtx.clearRect(0, 0, EQ_CSS_WIDTH, EQ_CSS_HEIGHT);
-  eqCtx.fillStyle = '#f5f5f7';
-
-  const gap = 4;
-  const barWidth = 3;
-  const middle = EQ_CSS_HEIGHT / 2;
-  const baseline = listening ? 4 : 3;
-
-  for (let i = 0; i < BARS; i++) {
-    const value = listening
-      ? Math.max(0.15, history[history.length - 1 - (BARS - 1 - i) * 2])
-      : 0.12;
-    const barHeight = Math.max(3, value * EQ_CSS_HEIGHT);
-    const x = i * (barWidth + gap);
-    eqCtx.beginPath();
-    eqCtx.roundRect(x, middle - barHeight / 2, barWidth, barHeight, barWidth / 2);
-    eqCtx.fill();
+  if (wave.width !== Math.round(width * dpr) || wave.height !== Math.round(height * dpr)) {
+    wave.width = Math.round(width * dpr);
+    wave.height = Math.round(height * dpr);
   }
-  buildLanguageMenu();
-requestAnimationFrame(drawEqualizer);
+  waveCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  waveCtx.clearRect(0, 0, width, height);
+
+  const gap = 3;
+  const barWidth = Math.max(2, (width - gap * (WAVE_BARS - 1)) / WAVE_BARS);
+  const middle = height / 2;
+  waveCtx.fillStyle = '#f5f5f7';
+
+  for (let i = 0; i < WAVE_BARS; i++) {
+    let value = 0;
+    if (listening && levels.length) {
+      const from = Math.floor((i / WAVE_BARS) * levels.length);
+      const to = Math.max(from + 1, Math.floor(((i + 1) / WAVE_BARS) * levels.length));
+      let sum = 0;
+      let count = 0;
+      for (let j = from; j < to && j < levels.length; j++) {
+        sum += levels[j];
+        count++;
+      }
+      value = count ? sum / count : 0;
+    }
+    const barHeight = Math.max(3, Math.min(height, Math.pow(value, 0.7) * height * 1.9 + 3));
+    const x = i * (barWidth + gap);
+    waveCtx.beginPath();
+    waveCtx.roundRect(x, middle - barHeight / 2, barWidth, barHeight, barWidth / 2);
+    waveCtx.fill();
+  }
+
+  requestAnimationFrame(drawWaveform);
 }
 
 buildLanguageMenu();
-requestAnimationFrame(drawEqualizer);
+requestAnimationFrame(drawWaveform);

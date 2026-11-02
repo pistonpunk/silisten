@@ -17,7 +17,7 @@ DEFAULTS = {
     "model": "openai/whisper-large-v3",
     "romanian_model": "FraPiz/whisper-large-v3-turbo-moldovan-romanian",
     "diarize": True,
-    "auto_stop": True,
+    "auto_stop": False,
     "auto_stop_seconds": 1.6,
     "diarization_dir": None,
     "diarization_threshold": 0.7,
