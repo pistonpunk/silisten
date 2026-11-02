@@ -78,8 +78,6 @@ Window {
         topRightRadius: 28
         bottomLeftRadius: 0
         bottomRightRadius: 0
-        border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.10)
         opacity: revealProgress
         transform: Translate {
             y: (1 - revealProgress) * 40
