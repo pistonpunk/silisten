@@ -1,29 +1,33 @@
 # Silisten
 
-Push-to-talk transcription for Linux. A notch appears at the bottom of the screen, you talk, and your words come back as text with the speakers labelled.
+Push-to-talk transcription for Linux. You hit a shortcut, talk, press Done, and the text appears in a small notch at the bottom of the screen. Copy it and carry on.
 
-Everything runs on your machine. Whisper does the speech recognition, Silero VAD stops silence from turning into invented sentences, and sherpa-onnx works out who was speaking.
+Everything runs on your own machine. No account, no API key, nothing leaves the computer.
 
 ![Silisten](docs/demo.gif)
 
+I wrote it because I wanted dictation that stays out of the way. The notch is small on purpose, it disappears when you are done with it, and it does not need a browser window or a subscription to work.
+
 ## Using it
 
-Press `Ctrl+Delete`, talk, press `Done`. The text lands in the notch and you copy it. If you keep talking before copying, the new text is appended instead of replacing what is there.
+`Ctrl+Delete` opens the notch and starts recording. Say what you need to say, then press `Done`. The text appears, and the copy button puts all of it on the clipboard.
 
-You can also drop an audio or video file on it, or pick one with the file button.
+If you think of something else before copying, press `Talk more` and the next recording gets appended to the same text instead of replacing it.
 
-## Install
+There is a file button too, and you can drag an audio or video file onto the notch. It will transcribe that and label the speakers.
+
+## Installing
 
 ### AppImage
 
-Download `Silisten-*-x86_64.AppImage` from [releases](../../releases), then:
+Grab `Silisten-*-x86_64.AppImage` from [releases](../../releases).
 
 ```sh
 chmod +x Silisten-*-x86_64.AppImage
 ./Silisten-*-x86_64.AppImage
 ```
 
-The first start creates a Python environment in `~/.local/share/silisten/venv`, installs the backend, and downloads the speech model you pick. Expect a few minutes and a few GB.
+First run is slow. It builds a Python environment under `~/.local/share/silisten/venv`, installs the speech backend, then downloads whichever model you pick. Give it a few minutes and a few GB of disk.
 
 ### From source
 
@@ -33,88 +37,87 @@ cd silisten
 ./install.sh
 ```
 
-`install.sh` asks which model profile you want, downloads only those models, builds the Qt UI, puts `silisten` on your PATH, and registers a desktop shortcut.
+The script asks which model profile you want, downloads just those, builds the Qt front end, drops a `silisten` command on your PATH, and adds a desktop shortcut.
 
-Dependencies, Debian/Ubuntu names:
+You will need these (Debian/Ubuntu names):
 
 ```
-python3-venv ffmpeg alsa-utils cmake g++ \
+python3-venv ffmpeg alsa-utils cmake g++
 qt6-base-dev qt6-declarative-dev qt6-wayland liblayershellqtinterface-dev
 ```
 
 ## Models
 
-No model is bundled. You pick what gets downloaded, now or later.
+Nothing is bundled. You choose what gets downloaded, either during install or later.
 
 ```sh
-silisten models                 # what is installed, what is in use
+silisten models                 # what is installed and what is in use
 silisten models install speech large-v3-turbo
-silisten models profile fast    # switch everything at once
+silisten models profile fast    # switch the whole set at once
 ```
 
 | Model | Size | Notes |
 | --- | --- | --- |
-| `large-v3` | 3.1 GB | Most accurate. Wants about 6 GB of VRAM. |
-| `large-v3-turbo` | 1.6 GB | Roughly twice as fast, slightly less accurate. |
-| `medium` | 1.5 GB | For smaller GPUs. |
-| `small` | 0.5 GB | Runs on CPU. |
+| `large-v3` | 3.1 GB | Most accurate. Wants around 6 GB of VRAM. |
+| `large-v3-turbo` | 1.6 GB | About twice as fast, a little less accurate. |
+| `medium` | 1.5 GB | For smaller cards. |
+| `small` | 0.5 GB | Fine on CPU. |
 
-A Romanian fine-tune (`fra-piz-turbo`) is used automatically when the language is set to Romanian. If its output does not look like Romanian it falls back to the main model, so a wrong language setting cannot corrupt your text.
+There is also a Romanian fine-tune that gets used when you set the language to Romanian. It is much better at Romanian than the stock model and about three times faster. If its output does not look like Romanian at all, Silisten falls back to the main model, so a wrong language setting cannot leave you with garbage.
 
-The same choice is available in the app's settings panel. A model that is not downloaded yet is fetched in the background the first time it is needed.
+The same choice is in the app settings if you would rather click than type. Anything not downloaded yet gets fetched the first time it is needed.
 
-## Configuration
+## Settings
 
-Lives in `~/.config/silisten/config.json`, and everything below can be set with `silisten config --set key=value`.
+Config lives in `~/.config/silisten/config.json`. You can edit the file, or use `silisten config --set key=value`.
 
 | Key | Default | What it does |
 | --- | --- | --- |
 | `shortcut` | `Ctrl+Delete` | Shortcut registered with your desktop |
-| `language` | `null` | Recognition language. `null` auto-detects |
-| `input_device` | `default` | Microphone, by the name shown in the picker |
-| `speech_model` | `large-v3` | One of the names in the table above |
-| `romanian_model` | `fra-piz-turbo` | Set to `null` to disable the Romanian model |
+| `language` | `null` | Recognition language. `null` means auto-detect |
+| `input_device` | `default` | Microphone, by the name in the picker |
+| `speech_model` | `large-v3` | One of the names above |
+| `romanian_model` | `fra-piz-turbo` | Set to `null` to turn the Romanian model off |
 | `diarization` | `pyannote-campplus` | Speaker labels. `null` turns them off |
 | `diarization_threshold` | `0.7` | Higher merges similar voices, lower splits them |
 | `vad_threshold` | `0.5` | Higher is stricter about what counts as speech |
-| `auto_stop` | `false` | Stop recording by itself after a pause |
+| `auto_stop` | `false` | Stop by itself after a pause |
 | `auto_stop_seconds` | `1.6` | How long that pause has to be |
 | `auto_download` | `true` | Fetch missing models automatically |
 | `models_dir` | `~/.local/share/silisten/models` | Where models are kept |
 | `port` | `8756` | Local backend port |
 
-## Requirements
+## What you need
 
-- Linux with a PipeWire or ALSA microphone
-- Python 3.11 or newer
-- 4 GB of RAM, plus whatever your chosen model needs
-- A GPU is optional but much faster. AMD is tested on ROCm; NVIDIA works through the same PyTorch path
+Linux with a PipeWire or ALSA microphone, Python 3.11 or newer, and 4 GB of RAM plus whatever your model needs.
 
-The windowing backend is picked at startup. Compositors that support layer-shell (KDE Plasma, Hyprland, sway, river, labwc, Wayfire) get a real bottom-edge overlay. Everything else, GNOME included, gets a frameless always-on-top window in the same place.
+A GPU is optional. On AMD it runs through ROCm; NVIDIA works through the same PyTorch path. On CPU it works too, just slowly, so pick a small model.
 
-## Troubleshooting
+About the window: Silisten checks the compositor at startup. On KDE Plasma, Hyprland, sway, river, labwc and Wayfire it uses a layer-shell surface, which is a real overlay pinned to the bottom edge. GNOME does not support that protocol, so there it falls back to a frameless always-on-top window in the same place. It looks the same, but other windows can still be focused over it in a few corner cases.
 
-**The shortcut does nothing.** Run `silisten config` and check the binding matches what your desktop has. On GNOME you can rebind it under Settings → Keyboard.
+## When something goes wrong
 
-**It is bound but nothing opens.** Run `silisten start` in a terminal; the error will be there.
+**Shortcut does nothing.** Check `silisten config` and make sure the binding there matches what your desktop has registered. On GNOME you can rebind under Settings, Keyboard.
 
-**Transcription is slow.** You are probably running on CPU. Pick a smaller model with `silisten models profile fast`.
+**It is bound but nothing opens.** Run `silisten start` in a terminal. The error will be right there instead of swallowed.
 
-**Everything sounds like English.** Set the language explicitly. Auto-detect is unreliable on short clips.
+**Transcription takes forever.** You are probably on CPU. `silisten models profile fast` fixes most of that.
 
-**No speaker labels.** The two small ONNX models are missing: `silisten models install diarization pyannote-campplus`.
+**Everything comes back in English.** Set the language by hand. Auto-detect is not reliable on short clips.
 
-**It writes text when I said nothing.** Raise `vad_threshold`, or check the right microphone is selected.
+**No speaker labels.** The two small ONNX models are missing. `silisten models install diarization pyannote-campplus` gets them, they are only about 40 MB.
 
-## Building
+**It types out words when I said nothing.** Raise `vad_threshold`, and check the right microphone is selected in the notch.
+
+## Building it
 
 ```sh
 cmake -S ui-qt -B ui-qt/build -DCMAKE_BUILD_TYPE=Release
 cmake --build ui-qt/build -j"$(nproc)"
 ```
 
-Pushing a tag builds the AppImage and a source archive in GitHub Actions and attaches them to the release.
+Push a tag and GitHub Actions builds the AppImage plus source archives and attaches them to the release. The workflow runs inside a clean Ubuntu container so the Qt version does not drift between machines.
 
 ## License
 
-MIT
+MIT. Do what you like with it.
