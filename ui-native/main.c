@@ -29,6 +29,7 @@ typedef struct {
     GtkWidget *mic_box;
     GtkWidget *lang_box;
     GtkWidget *copy_btn;
+    GtkWidget *scroll;
 
     double levels[MAX_LEVELS];
     int nlevels;
@@ -45,6 +46,7 @@ typedef struct {
 } App;
 
 static App A;
+static int work_progress_pct = -1;
 static int RENDER_MODE = 0;
 
 static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *userdata) {
@@ -160,47 +162,122 @@ static void draw_wave(GtkWidget *w, cairo_t *cr, gpointer data) {
     }
 }
 
-static void position_window(void) {
+static void fit_transcript(void) {
+}
+
+static char current_page[16] = "";
+
+static int target_height(void) {
+    const char *page = current_page[0] ? current_page : "result";
+    int h;
+    if (strcmp(page, "listen") == 0) h = 198;
+    else if (strcmp(page, "work") == 0) h = 150;
+    else if (strcmp(page, "error") == 0) h = 190;
+    else h = 420;
+    return h;
+}
+
+static void monitor_geom(GdkRectangle *geo) {
     GdkDisplay *dpy = gdk_display_get_default();
     GdkMonitor *mon = gdk_display_get_primary_monitor(dpy);
     if (!mon) mon = gdk_display_get_monitor(dpy, 0);
+    gdk_monitor_get_geometry(mon, geo);
+}
+
+static void place(int height, int y_offset) {
     GdkRectangle geo;
-    gdk_monitor_get_geometry(mon, &geo);
-    int w = WIDTH;
-    int h = gtk_widget_get_allocated_height(A.window);
-    if (h <= 1) h = 240;
-    int x = geo.x + (geo.width - w) / 2;
-    int y = geo.y + geo.height - h;
-    gtk_window_resize(GTK_WINDOW(A.window), w, h);
+    monitor_geom(&geo);
+    int x = geo.x + (geo.width - WIDTH) / 2;
+    int y = geo.y + geo.height - height + y_offset;
+    gtk_widget_set_size_request(A.window, WIDTH, height);
+    gtk_window_resize(GTK_WINDOW(A.window), WIDTH, height);
     gtk_window_move(GTK_WINDOW(A.window), x, y);
+    {
+        GtkAllocation wa;
+        gtk_widget_get_allocation(A.window, &wa);
+        fprintf(stderr, "[place] want %dx%d  win alloc %dx%d at %d,%d\n", WIDTH, height, wa.width, wa.height, wa.x, wa.y);
+    }
+}
+
+static void repaint(void) {
+    gtk_widget_queue_draw(A.window);
+    gtk_widget_queue_draw(A.root);
+    GdkWindow *gw = gtk_widget_get_window(A.window);
+    if (gw) {
+        gdk_window_invalidate_rect(gw, NULL, TRUE);
+        gdk_window_process_updates(gw, TRUE);
+    }
+    while (gtk_events_pending()) gtk_main_iteration();
 }
 
 static void fit_window(void) {
-    GtkWidget *page = gtk_stack_get_visible_child(GTK_STACK(A.stack));
-    GtkRequisition page_req = {0, 0};
-    if (page) gtk_widget_get_preferred_size(page, &page_req, NULL);
+    place(target_height(), 0);
+    repaint();
+}
 
-    GtkRequisition req;
-    gtk_widget_get_preferred_size(A.root, &req, NULL);
-    int head_h = 52;
-    int margins = 6 + 16 + 40;
-    if (page_req.height > 0 && req.height > 0) req.height = page_req.height + head_h + margins;
-    int h = req.height;
-    GdkDisplay *dpy = gdk_display_get_default();
-    GdkMonitor *mon = gdk_display_get_primary_monitor(dpy);
-    if (!mon) mon = gdk_display_get_monitor(dpy, 0);
-    GdkRectangle geo;
-    gdk_monitor_get_geometry(mon, &geo);
-    int x = geo.x + (geo.width - WIDTH) / 2;
-    int y = geo.y + geo.height - h;
-    gtk_window_resize(GTK_WINDOW(A.window), WIDTH, h);
-    gtk_window_move(GTK_WINDOW(A.window), x, y);
-    fprintf(stderr, "[fit] move to %d,%d size %dx%d (monitor %dx%d)\n", x, y, WIDTH, h, geo.width, geo.height);
+static gdouble anim_pos = 1.0;
+static gdouble anim_vel = 0.0;
+static int anim_dir = 0;
+static int anim_height = 0;
+static guint anim_id = 0;
+
+static gboolean anim_tick(gpointer d) {
+    (void)d;
+    const gdouble stiffness = 260.0;
+    const gdouble damping = 26.0;
+    gdouble target = anim_dir > 0 ? 1.0 : 0.0;
+    gdouble dt = 1.0 / 60.0;
+    gdouble force = (target - anim_pos) * stiffness - anim_vel * damping;
+    anim_vel += force * dt;
+    anim_pos += anim_vel * dt;
+
+    if (fabs(anim_pos - target) < 0.004 && fabs(anim_vel) < 0.5) {
+        anim_pos = target;
+        anim_vel = 0;
+        anim_id = 0;
+        if (anim_dir > 0) {
+            place(anim_height, 0);
+            gtk_widget_set_opacity(A.window, 1.0);
+            repaint();
+        } else {
+            gtk_widget_hide(A.window);
+            gtk_widget_set_opacity(A.window, 1.0);
+        }
+        return G_SOURCE_REMOVE;
+    }
+
+    int slide = (int)(anim_pos * anim_height);
+    place(anim_height, anim_height - slide);
+    gtk_widget_set_opacity(A.window, CLAMP(anim_pos, 0.0, 1.0));
+    repaint();
+    return G_SOURCE_CONTINUE;
+}
+
+static void animate(int open) {
+    anim_height = target_height();
+    anim_dir = open ? 1 : -1;
+    if (open) {
+        anim_pos = 0.0;
+        anim_vel = 0.0;
+        gtk_widget_set_opacity(A.window, 0.0);
+        gtk_widget_show_all(A.window);
+    }
+    anim_vel = open ? 6.0 : -6.0;
+    if (!anim_id) anim_id = g_timeout_add(16, anim_tick, NULL);
 }
 
 static void show_page(const char *name) {
+    if (strcmp(current_page, name) == 0) return;
+    g_strlcpy(current_page, name, sizeof current_page);
     gtk_stack_set_visible_child_name(GTK_STACK(A.stack), name);
-    fit_window();
+    if (!gtk_widget_get_visible(A.window)) {
+        fit_window();
+        return;
+    }
+    int h = target_height();
+    anim_height = h;
+    place(h, 0);
+    repaint();
 }
 
 static void on_done(GtkWidget *b, gpointer d) {
@@ -406,36 +483,55 @@ static void apply_state(const char *json) {
     int reveal = json_object_has_member(o, "reveal") ? json_object_get_int_member(o, "reveal") : 0;
     int hide = json_object_has_member(o, "hide_request") ? json_object_get_int_member(o, "hide_request") : 0;
     if (A.poll_ready && reveal != A.last_reveal) {
-        gtk_widget_show_all(A.window);
-        position_window();
+        animate(1);
     }
-    if (A.poll_ready && hide != A.last_hide) gtk_widget_hide(A.window);
+    if (A.poll_ready && hide != A.last_hide) animate(0);
     A.last_reveal = reveal;
     A.last_hide = hide;
     A.poll_ready = 1;
 
     const char *text = json_object_has_member(o, "text") ? json_object_get_string_member(o, "text") : "";
-    gtk_label_set_text(GTK_LABEL(A.transcript), text ? text : "");
+    if (text && *text) {
+        gtk_label_set_text(GTK_LABEL(A.transcript), text);
+        gtk_style_context_remove_class(gtk_widget_get_style_context(A.transcript), "empty");
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(A.scroll), 240);
+    gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(A.scroll), 240);
+    gtk_scrolled_window_set_propagate_natural_height(GTK_SCROLLED_WINDOW(A.scroll), FALSE);
+    } else if (strcmp(status, "done") == 0 || strcmp(status, "idle") == 0) {
+        gtk_label_set_text(GTK_LABEL(A.transcript), "No speech detected. Try again.");
+        gtk_style_context_add_class(gtk_widget_get_style_context(A.transcript), "empty");
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(A.scroll), 28);
+    gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(A.scroll), 28);
+    }
 
     const char *phase = json_object_has_member(o, "phase") ? json_object_get_string_member(o, "phase") : "";
     if (strcmp(status, "thinking") == 0) {
         if (phase && strcmp(phase, "identifying speakers") == 0)
-            gtk_label_set_text(GTK_LABEL(A.phase), "Naming speakers");
+            gtk_label_set_text(GTK_LABEL(A.phase), "Working out who is speaking");
         else if (phase && strcmp(phase, "decoding") == 0)
-            gtk_label_set_text(GTK_LABEL(A.phase), "Reading the file");
+            gtk_label_set_text(GTK_LABEL(A.phase), "Opening the file");
         else
-            gtk_label_set_text(GTK_LABEL(A.phase), "Transcribing");
-        if (A.has_progress)
-            gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(A.progress), A.progress_value);
-        else
-            gtk_progress_bar_pulse(GTK_PROGRESS_BAR(A.progress));
+            gtk_label_set_text(GTK_LABEL(A.phase), "Turning your voice into text");
+        work_progress_pct = A.has_progress ? (int)(A.progress_value * 100.0) : -1;
+        gtk_widget_queue_draw(A.progress);
     }
+
+    fit_transcript();
 
     const char *title = "Listening";
     if (strcmp(status, "thinking") == 0) title = "Transcribing";
     else if (strcmp(status, "error") == 0) title = "Something went wrong";
     else if (strcmp(status, "done") == 0 || strcmp(status, "idle") == 0) title = "Transcription";
     gtk_label_set_text(GTK_LABEL(A.title), title);
+    if (gtk_widget_get_visible(A.window) && anim_id == 0) {
+        int want = target_height();
+        GtkAllocation wa;
+        gtk_widget_get_allocation(A.window, &wa);
+        if (want != wa.height) {
+            place(want, 0);
+            repaint();
+        }
+    }
 
     if (strcmp(status, "error") == 0) {
         const char *err = json_object_has_member(o, "error") ? json_object_get_string_member(o, "error") : "";
@@ -482,7 +578,7 @@ static void apply_state(const char *json) {
 static gboolean on_tick(gpointer d) {
     (void)d;
     char path[64];
-    int vis = gtk_widget_get_visible(A.window) ? 1 : 0;
+    int vis = (anim_dir >= 0 && anim_pos > 0.5 && gtk_widget_get_mapped(A.window)) ? 1 : 0;
     snprintf(path, sizeof path, "/state?levels=1&visible=%d", vis);
     GString *r = http_request(path, NULL);
     if (r->len > 0) apply_state(r->str);
@@ -501,6 +597,7 @@ static void load_css(void) {
         ".title { font-size: 27px; font-weight: 600; }\n"
         ".timer { font-size: 46px; font-weight: 500; }\n"
         ".muted { color: #8e8e93; font-size: 15px; }\n"
+        "label.empty { color: #6e6e73; }\n"
         "button { border-radius: 999px; padding: 9px 20px; font-size: 15px; font-weight: 600;\n"
         "         background-image: none; box-shadow: none; border: none; }\n"
         "button.primary { background-color: #f5f5f7; color: #000; }\n"
@@ -561,22 +658,90 @@ static GtkWidget *pane_listen(void) {
     return box;
 }
 
+static void hsv(double h, double s, double v, double *r, double *g, double *b) {
+    double i = floor(h * 6.0);
+    double f = h * 6.0 - i;
+    double p = v * (1.0 - s);
+    double q = v * (1.0 - f * s);
+    double t = v * (1.0 - (1.0 - f) * s);
+    switch ((int)i % 6) {
+        case 0: *r = v; *g = t; *b = p; break;
+        case 1: *r = q; *g = v; *b = p; break;
+        case 2: *r = p; *g = v; *b = t; break;
+        case 3: *r = p; *g = q; *b = v; break;
+        case 4: *r = t; *g = p; *b = v; break;
+        default: *r = v; *g = p; *b = q; break;
+    }
+}
+
+static double phase_t = 0.0;
+
+static void draw_bar(GtkWidget *w, cairo_t *cr, gpointer d) {
+    (void)d;
+    int width = gtk_widget_get_allocated_width(w);
+    int height = gtk_widget_get_allocated_height(w);
+    double radius = height / 2.0;
+
+    cairo_set_source_rgba(cr, 1, 1, 1, 0.10);
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, radius, height / 2.0, radius, M_PI / 2, 3 * M_PI / 2);
+    cairo_arc(cr, width - radius, height / 2.0, radius, 3 * M_PI / 2, M_PI / 2);
+    cairo_close_path(cr);
+    cairo_fill(cr);
+
+    double frac = (work_progress_pct >= 0) ? work_progress_pct / 100.0 : 0.3;
+    if (frac < 0.06) frac = 0.06;
+    double bar_w = width * frac;
+
+    cairo_save(cr);
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, radius, height / 2.0, radius, M_PI / 2, 3 * M_PI / 2);
+    cairo_arc(cr, bar_w - radius, height / 2.0, radius, 3 * M_PI / 2, M_PI / 2);
+    cairo_close_path(cr);
+    cairo_clip(cr);
+
+    cairo_pattern_t *g = cairo_pattern_create_linear(0, 0, bar_w > 40 ? bar_w : 40, 0);
+    for (int i = 0; i <= 8; i++) {
+        double t = i / 8.0;
+        double hue = fmod(phase_t + t * 0.9, 1.0);
+        double r, gg, b;
+        hsv(hue, 0.6, 1.0, &r, &gg, &b);
+        cairo_pattern_add_color_stop_rgb(g, t, r, gg, b);
+    }
+    cairo_set_source(cr, g);
+    cairo_paint(cr);
+    cairo_pattern_destroy(g);
+    cairo_restore(cr);
+}
+
+static gboolean bar_tick(gpointer d) {
+    (void)d;
+    if (!A.progress || !gtk_widget_get_visible(A.progress)) return G_SOURCE_REMOVE;
+    phase_t = fmod(phase_t + 0.012, 1.0);
+    gtk_widget_queue_draw(A.progress);
+    return G_SOURCE_CONTINUE;
+}
+
 static GtkWidget *pane_work(void) {
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 14);
-    A.phase = gtk_label_new("Transcribing");
+    A.phase = gtk_label_new("Working");
     gtk_widget_set_halign(A.phase, GTK_ALIGN_START);
     gtk_style_context_add_class(gtk_widget_get_style_context(A.phase), "muted");
     gtk_box_pack_start(GTK_BOX(box), A.phase, FALSE, FALSE, 0);
-    A.progress = gtk_progress_bar_new();
+    A.progress = gtk_drawing_area_new();
+    gtk_widget_set_size_request(A.progress, -1, 6);
+    g_signal_connect(A.progress, "draw", G_CALLBACK(draw_bar), NULL);
     gtk_box_pack_start(GTK_BOX(box), A.progress, FALSE, FALSE, 0);
+    g_timeout_add(16, bar_tick, NULL);
     return box;
 }
 
 static GtkWidget *pane_result(void) {
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
-    gtk_widget_set_size_request(scroll, -1, 190);
+    gtk_widget_set_size_request(scroll, -1, 240);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    A.scroll = scroll;
     A.transcript = gtk_label_new("");
     gtk_label_set_line_wrap(GTK_LABEL(A.transcript), TRUE);
     gtk_label_set_selectable(GTK_LABEL(A.transcript), TRUE);
@@ -584,7 +749,7 @@ static GtkWidget *pane_result(void) {
     gtk_label_set_yalign(GTK_LABEL(A.transcript), 0.0);
     gtk_widget_set_can_focus(A.transcript, FALSE);
     gtk_widget_set_hexpand(A.transcript, TRUE);
-    gtk_label_set_max_width_chars(GTK_LABEL(A.transcript), 60);
+
     gtk_widget_set_valign(A.transcript, GTK_ALIGN_START);
     gtk_container_add(GTK_CONTAINER(scroll), A.transcript);
     gtk_box_pack_start(GTK_BOX(box), scroll, TRUE, TRUE, 0);
@@ -659,8 +824,8 @@ static void build(void) {
 
     A.root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(A.root), 20);
-    gtk_widget_set_margin_top(A.root, 6);
-    gtk_widget_set_margin_bottom(A.root, 16);
+    gtk_widget_set_margin_top(A.root, 4);
+    gtk_widget_set_margin_bottom(A.root, 14);
     gtk_widget_set_size_request(A.root, WIDTH - 40, -1);
     gtk_container_add(GTK_CONTAINER(A.window), A.root);
 
@@ -676,6 +841,8 @@ static void build(void) {
     gtk_box_pack_start(GTK_BOX(A.root), head, FALSE, FALSE, 0);
 
     A.stack = gtk_stack_new();
+    gtk_stack_set_homogeneous(GTK_STACK(A.stack), FALSE);
+    gtk_stack_set_vhomogeneous(GTK_STACK(A.stack), FALSE);
     gtk_stack_set_transition_type(GTK_STACK(A.stack), GTK_STACK_TRANSITION_TYPE_CROSSFADE);
     gtk_stack_add_named(GTK_STACK(A.stack), pane_listen(), "listen");
     gtk_stack_add_named(GTK_STACK(A.stack), pane_work(), "work");
