@@ -24,6 +24,8 @@ class App:
         self.progress = None
         self.phase = ""
         self.reveal = 0
+        self.hide_request = 0
+        self.ui_visible = False
         self.append = False
         self.duration = 0.0
         self._heard_speech = False
@@ -34,8 +36,15 @@ class App:
     def toggle(self):
         if self.status == "listening":
             self.stop_recording()
-        elif self.status in ("thinking", "idle", "done", "error"):
-            self.start_recording(append=False)
+            return
+        if self.status == "thinking":
+            return
+        if self.ui_visible:
+            with self.lock:
+                self.hide_request += 1
+                self.ui_visible = False
+            return
+        self.start_recording(append=False)
 
     def start_recording(self, append=False):
         with self.lock:
@@ -229,6 +238,8 @@ class App:
                 "duration": recorder.duration if recorder and self.status == "listening" else self.duration,
                 "level": recorder.level if recorder and self.status == "listening" else 0.0,
                 "reveal": self.reveal,
+                "hide_request": self.hide_request,
+                "ui_visible": self.ui_visible,
                 "append": self.append,
                 "shortcut": self.cfg["shortcut"],
                 "engine": {
@@ -266,13 +277,26 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._authorized():
             return self._send({"error": "unauthorized"}, 401)
-        if self.path == "/state":
-            return self._send(self.app.snapshot())
-        if self.path == "/config":
+        route, _, query = self.path.partition("?")
+        if route == "/state":
+            levels = []
+            if "levels=1" in query:
+                recorder = self.app.recorder
+                if recorder and self.app.status == "listening":
+                    levels = recorder.drain_levels()
+            if "visible=" in query:
+                with self.app.lock:
+                    self.app.ui_visible = query.rsplit("visible=", 1)[1].startswith("1")
+            payload = self.app.snapshot()
+            payload["levels"] = levels
+            return self._send(payload)
+        if route == "/config":
             return self._send(self.app.cfg)
-        if self.path == "/sources":
+        if route == "/languages":
+            return self._send(language_list())
+        if route == "/sources":
             return self._send(audio.list_sources())
-        if self.path == "/quit":
+        if route == "/quit":
             threading.Thread(target=self.server.shutdown, daemon=True).start()
             return self._send({"ok": True})
         self._send({"error": "not found"}, 404)
@@ -291,6 +315,9 @@ class Handler(BaseHTTPRequestHandler):
             self.app.start_recording(bool(body.get("append")))
         elif self.path == "/record/stop":
             self.app.stop_recording()
+        elif self.path == "/ui":
+            with self.app.lock:
+                self.app.ui_visible = bool(body.get("visible"))
         elif self.path == "/clear":
             self.app.clear()
         elif self.path == "/upload":
@@ -315,3 +342,13 @@ def create_app(cfg=None):
     httpd = ThreadingHTTPServer(("127.0.0.1", int(cfg.get("port") or 8756)), handler)
     httpd.daemon_threads = True
     return app, httpd
+
+
+def language_list():
+    try:
+        from transformers.models.whisper.tokenization_whisper import LANGUAGES
+
+        items = sorted(((code, name.title()) for code, name in LANGUAGES.items()), key=lambda kv: kv[1])
+    except Exception:
+        items = [("en", "English"), ("ro", "Romanian"), ("de", "German"), ("fr", "French")]
+    return [{"code": "", "name": "Auto"}] + [{"code": c, "name": n} for c, n in items]

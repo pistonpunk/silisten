@@ -111,20 +111,94 @@ def cmd_start(_args):
     owns_backend = not _already_running()
     if owns_backend:
         cfg, httpd = _boot()
+    native = ROOT / "ui-native" / "silisten-ui"
+    if not native.exists():
+        print("ui not built - run ./install.sh", file=sys.stderr)
+        if owns_backend:
+            httpd.shutdown()
+        return 1
+    argv, cwd = [str(native)], str(ROOT / "ui-native")
+    env = dict(os.environ)
+    subprocess.Popen(
+        [sys.executable, "-m", "silisten", command],
+        cwd=str(ROOT),
+        env={**env, "PYTHONPATH": str(ROOT)},
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+def cmd_shortcut(args):
+    from . import setup
+
+    cfg = config.load()
+    if args.chord:
+        cfg["shortcut"] = args.chord.strip()
+        config.save(cfg)
+    if not setup.gnome_shortcut(cfg["shortcut"]):
+        return 1
+    return 0
+
+
+def _boot():
+    from . import server
+
+    cfg = config.load()
+    app, httpd = server.create_app(cfg)
+    app.boot()
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return cfg, httpd
+
+
+def cmd_backend(_args):
+    if _already_running():
+        print("silisten backend is already running", file=sys.stderr)
+        return 1
+    cfg, httpd = _boot()
+    print(f"silisten backend on 127.0.0.1:{cfg['port']}  shortcut {cfg['shortcut']}", flush=True)
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        httpd.shutdown()
+    return 0
+
+
+def _already_running():
+    try:
+        api("/state", timeout=2)
+        return True
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
+def cmd_start(_args):
+    cfg = config.load()
+    owns_backend = not _already_running()
+    if owns_backend:
+        cfg, httpd = _boot()
+    native = ROOT / "ui-native" / "silisten-ui"
     electron = ROOT / "ui" / "node_modules" / ".bin" / "electron"
-    if not electron.exists():
-        print("electron is not installed - run ./install.sh", file=sys.stderr)
+    debug_port = os.environ.get("SILISTEN_DEBUG_PORT")
+    if native.exists():
+        argv, cwd = [str(native)], str(ROOT / "ui-native")
+    elif electron.exists():
+        argv = [str(electron), ".", "--ozone-platform=x11"]
+        if debug_port:
+            argv.append(f"--remote-debugging-port={debug_port}")
+        cwd = str(ROOT / "ui")
+    else:
+        print("ui not built - run ./install.sh", file=sys.stderr)
         if owns_backend:
             httpd.shutdown()
         return 1
     env = dict(os.environ)
     env["SILISTEN_URL"] = f"http://127.0.0.1:{cfg['port']}"
     env["SILISTEN_TOKEN"] = config.token()
-    args = [str(electron), ".", "--ozone-platform=x11"]
-    if os.environ.get("SILISTEN_DEBUG_PORT"):
-        args.append(f"--remote-debugging-port={os.environ['SILISTEN_DEBUG_PORT']}")
     proc = subprocess.Popen(
-        args, cwd=str(ROOT / "ui"), env=env,
+        argv, cwd=cwd, env=env,
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True,
     )

@@ -5,7 +5,7 @@ import threading
 import numpy as np
 
 RATE = 16000
-CHUNK = RATE // 10
+CHUNK = RATE // 50
 
 
 class Recorder:
@@ -13,6 +13,8 @@ class Recorder:
         self.device = device
         self._pcm = bytearray()
         self._level = 0.0
+        self._levels = []
+        self._levels_lock = threading.Lock()
         self._stop = threading.Event()
         self._proc = None
         self._thread = None
@@ -21,6 +23,7 @@ class Recorder:
     def start(self):
         self._pcm = bytearray()
         self._level = 0.0
+        self._levels = []
         self.error = None
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -55,6 +58,12 @@ class Recorder:
     @property
     def level(self):
         return self._level
+
+    def drain_levels(self):
+        with self._levels_lock:
+            out = self._levels
+            self._levels = []
+        return out
 
     @property
     def running(self):
@@ -109,6 +118,10 @@ class Recorder:
             if samples.size:
                 rms = float(np.sqrt(np.mean(samples**2)))
                 self._level = min(1.0, max(0.0, (rms - 0.008) * 9.0))
+                with self._levels_lock:
+                    self._levels.append(self._level)
+                    if len(self._levels) > 4000:
+                        del self._levels[:1000]
         if self._proc and self._proc.poll() not in (None, 0, -15):
             self.error = "recorder exited unexpectedly"
 

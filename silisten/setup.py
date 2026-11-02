@@ -133,10 +133,10 @@ def prefetch(cfg):
 
 
 def check_commands():
-    missing = [c for c in ("ffmpeg", "arecord", "node", "npm") if not shutil.which(c)]
+    missing = [c for c in ("ffmpeg", "arecord", "cc", "pkg-config") if not shutil.which(c)]
     if missing:
         print(f"  missing commands: {', '.join(missing)}")
-        print("  sudo apt install ffmpeg alsa-utils nodejs npm")
+        print("  sudo apt install ffmpeg alsa-utils build-essential pkg-config libgtk-3-dev libjson-glib-dev libcurl4-openssl-dev")
         return False
     print("  system commands: ok")
     return True
