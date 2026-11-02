@@ -67,6 +67,20 @@ public:
             fetchList("/languages", m_languages);
             fetchModels();
         });
+
+        auto *retry = new QTimer(this);
+        retry->setInterval(1500);
+        connect(retry, &QTimer::timeout, this, [this] {
+            if (!m_sources.isEmpty() && !m_languages.isEmpty() && !m_speechModels.isEmpty()) {
+                m_retry->stop();
+                return;
+            }
+            if (m_sources.isEmpty()) fetchList("/sources", m_sources);
+            if (m_languages.isEmpty()) fetchList("/languages", m_languages);
+            if (m_speechModels.isEmpty()) fetchModels();
+        });
+        m_retry = retry;
+        retry->start();
     }
 
     QString status() const { return m_status; }
@@ -262,6 +276,7 @@ private:
     bool m_inFlight = false;
     QVariantList m_levels;
     QVariantList m_sources;
+    QTimer *m_retry = nullptr;
     QVariantList m_languages;
     QVariantList m_speechModels;
     QString m_speechModel;

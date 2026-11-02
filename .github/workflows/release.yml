@@ -122,8 +122,18 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          generate_release_notes: false
+          body: |
+            Silisten ${{ env.VERSION }}
+
+            Push-to-talk transcription for Linux, running fully on your machine.
+
+            Download `Silisten-${{ env.VERSION }}-x86_64.AppImage` for the app,
+            or one of the source archives to build it yourself.
+
+            The first start creates a Python environment and downloads the speech
+            model you pick. Nothing else is bundled.
           files: |
             Silisten-*-x86_64.AppImage
             Silisten-*-source.tar.gz
             Silisten-*-source.zip
-          generate_release_notes: true

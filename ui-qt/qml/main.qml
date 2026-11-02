@@ -75,6 +75,8 @@ Window {
         implicitHeight: content.implicitHeight + 44
         color: "#000000"
         radius: 28
+        border.width: 2
+        border.color: "#ffffff"
         opacity: revealProgress
         transform: Translate {
             y: (1 - revealProgress) * 40
@@ -107,6 +109,12 @@ Window {
                 }
 
                 Button {
+
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+                    scale: down ? 0.97 : 1.0
+
+                    Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
                     display: AbstractButton.IconOnly
                     icon.name: "emblem-system-symbolic"
                     icon.width: 18
@@ -117,11 +125,20 @@ Window {
                     background: Rectangle {
                         radius: height / 2
                         color: parent.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.07)
+
+                    
+                            Behavior on color { ColorAnimation { duration: 120 } }
                     }
                     onClicked: root.settingsOpen = !root.settingsOpen
                 }
 
                 Button {
+
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+                    scale: down ? 0.97 : 1.0
+
+                    Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
                     display: AbstractButton.IconOnly
                     icon.name: "window-close-symbolic"
                     icon.width: 16
@@ -132,6 +149,9 @@ Window {
                     background: Rectangle {
                         radius: height / 2
                         color: parent.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.07)
+
+                    
+                            Behavior on color { ColorAnimation { duration: 120 } }
                     }
                     onClicked: root.visible = false
                 }
@@ -142,6 +162,8 @@ Window {
                 spacing: 0
 
                 ColumnLayout {
+                    opacity: (root.listening && !root.settingsOpen) ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
                     visible: root.listening && !root.settingsOpen
                     spacing: 12
                     Label {
@@ -191,6 +213,12 @@ Window {
                         Layout.fillWidth: true
 
                         Button {
+
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+                            scale: down ? 0.97 : 1.0
+
+                            Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
                             text: "Done"
                             implicitHeight: 42
                             implicitWidth: 92
@@ -206,6 +234,9 @@ Window {
                             background: Rectangle {
                                 radius: 21
                                 color: parent.hovered ? "#ffffff" : "#f5f5f7"
+
+                            
+                                    Behavior on color { ColorAnimation { duration: 120 } }
                             }
                             onClicked: backend.stopRecording()
                         }
@@ -252,6 +283,9 @@ Window {
                             background: Rectangle {
                                 radius: height / 2
                                 color: micBox.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.10)
+
+                            
+                                    Behavior on color { ColorAnimation { duration: 120 } }
                             }
                         }
 
@@ -296,6 +330,9 @@ Window {
                             background: Rectangle {
                                 radius: height / 2
                                 color: langBox.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.10)
+
+                            
+                                    Behavior on color { ColorAnimation { duration: 120 } }
                             }
                         }
                     }
@@ -401,6 +438,9 @@ Window {
                         background: Rectangle {
                             radius: height / 2
                             color: modelBox.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.10)
+
+                        
+                                Behavior on color { ColorAnimation { duration: 120 } }
                         }
                     }
 
@@ -458,6 +498,8 @@ Window {
                             text: backend.text.length ? backend.text : "No speech detected. Try again."
                             readOnly: true
                             selectByMouse: true
+                            selectionColor: "#3a5fb8"
+                            selectedTextColor: "#ffffff"
                             wrapMode: TextArea.Wrap
                             color: backend.text.length ? "#f5f5f7" : "#6e6e73"
                             font.pixelSize: 18
@@ -472,6 +514,12 @@ Window {
                         Layout.fillWidth: true
 
                         Button {
+
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+                            scale: down ? 0.97 : 1.0
+
+                            Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
                             display: AbstractButton.IconOnly
                             icon.name: "edit-copy-symbolic"
                             icon.width: 22
@@ -484,6 +532,9 @@ Window {
                             background: Rectangle {
                                 radius: height / 2
                                 color: parent.hovered ? "#ffffff" : "#f5f5f7"
+
+                            
+                                    Behavior on color { ColorAnimation { duration: 120 } }
                             }
                             onClicked: {
                                 textCopied.text = backend.text
@@ -493,6 +544,12 @@ Window {
                         }
 
                         Button {
+
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+                            scale: down ? 0.97 : 1.0
+
+                            Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
                             text: "Talk more"
                             implicitHeight: 42
                             implicitWidth: 110
@@ -508,6 +565,9 @@ Window {
                             background: Rectangle {
                                 radius: height / 2
                                 color: parent.hovered ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.10)
+
+                            
+                                    Behavior on color { ColorAnimation { duration: 120 } }
                             }
                             onClicked: backend.startRecording(true)
                         }
@@ -515,6 +575,12 @@ Window {
                         Item { Layout.fillWidth: true }
 
                         Button {
+
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+                            scale: down ? 0.97 : 1.0
+
+                            Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
                             display: AbstractButton.IconOnly
                             icon.name: "document-open-symbolic"
                             icon.width: 22
@@ -525,6 +591,9 @@ Window {
                             background: Rectangle {
                                 radius: height / 2
                                 color: parent.hovered ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.10)
+
+                            
+                                    Behavior on color { ColorAnimation { duration: 120 } }
                             }
                             onClicked: fileDialog.open()
                         }
