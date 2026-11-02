@@ -45,6 +45,7 @@ jobs:
           cp ui-qt/build/silisten-qt "$APPDIR/usr/bin/"
           cp -r ui-qt/build/qml "$APPDIR/usr/bin/qml"
           cp -r "$(qmake6 -query QT_INSTALL_QML)" "$APPDIR/usr/qml"
+          mkdir -p "$APPDIR/usr/lib"
           cp -a $(qmake6 -query QT_INSTALL_LIBS)/libQt6*.so.6* "$APPDIR/usr/lib/"
           cp -r silisten "$APPDIR/usr/share/silisten/"
           cp requirements.txt "$APPDIR/usr/share/silisten/"
