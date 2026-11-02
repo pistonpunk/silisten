@@ -50,20 +50,6 @@ jobs:
           curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x linuxdeploy linuxdeploy-plugin-qt appimagetool
 
-      - name: Check the AppImage is self-consistent
-        run: |
-          APPIMAGE=$(ls Silisten-*-x86_64.AppImage)
-          ./"$APPIMAGE" --appimage-extract > /dev/null
-          LIBDIR="$(dirname "$(find squashfs-root -name 'libQt6Core.so.6' | head -1)")"
-          echo "bundled Qt in $LIBDIR"
-          if LD_LIBRARY_PATH="$LIBDIR" ldd squashfs-root/usr/bin/silisten-qt | grep -q "not found"; then
-            echo "missing libraries:"
-            LD_LIBRARY_PATH="$LIBDIR" ldd squashfs-root/usr/bin/silisten-qt | grep "not found"
-            exit 1
-          fi
-          VERSION=$(strings "$LIBDIR/libQt6Core.so.6" | grep -oE "^6\.[0-9]+\.[0-9]+$" | head -1)
-          echo "Qt $VERSION resolves cleanly"
-
       - name: Version
         run: echo "VERSION=$(echo "${GITHUB_REF_NAME#v}" | tr -cd '0-9A-Za-z._-')" >> "$GITHUB_ENV"
 
@@ -81,6 +67,20 @@ jobs:
             --desktop-file AppDir/usr/share/applications/silisten.desktop \
             --icon-file AppDir/silisten.svg
           ./appimagetool AppDir "Silisten-${VERSION:-dev}-x86_64.AppImage"
+
+      - name: Check the AppImage is self-consistent
+        run: |
+          APPIMAGE=$(ls Silisten-*-x86_64.AppImage)
+          ./"$APPIMAGE" --appimage-extract > /dev/null
+          LIBDIR="$(dirname "$(find squashfs-root -name 'libQt6Core.so.6' | head -1)")"
+          echo "bundled Qt in $LIBDIR"
+          if LD_LIBRARY_PATH="$LIBDIR" ldd squashfs-root/usr/bin/silisten-qt | grep -q "not found"; then
+            echo "missing libraries:"
+            LD_LIBRARY_PATH="$LIBDIR" ldd squashfs-root/usr/bin/silisten-qt | grep "not found"
+            exit 1
+          fi
+          VERSION=$(strings "$LIBDIR/libQt6Core.so.6" | grep -oE "^6\.[0-9]+\.[0-9]+$" | head -1)
+          echo "Qt $VERSION resolves cleanly"
 
       - name: Source archive
         run: |
