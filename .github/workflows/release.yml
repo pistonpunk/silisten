@@ -54,10 +54,15 @@ jobs:
         run: |
           APPIMAGE=$(ls Silisten-*-x86_64.AppImage)
           ./"$APPIMAGE" --appimage-extract > /dev/null
-          CORE=$(ls squashfs-root/usr/lib*/libQt6Core.so.6 2>/dev/null | head -1)
-          echo "bundled core: $CORE"
-          ldd squashfs-root/usr/bin/silisten-qt | grep -q "not found" && { echo "missing libraries"; exit 1; }
-          echo "all linked libraries resolved"
+          LIBDIR="$(dirname "$(find squashfs-root -name 'libQt6Core.so.6' | head -1)")"
+          echo "bundled Qt in $LIBDIR"
+          if LD_LIBRARY_PATH="$LIBDIR" ldd squashfs-root/usr/bin/silisten-qt | grep -q "not found"; then
+            echo "missing libraries:"
+            LD_LIBRARY_PATH="$LIBDIR" ldd squashfs-root/usr/bin/silisten-qt | grep "not found"
+            exit 1
+          fi
+          VERSION=$(strings "$LIBDIR/libQt6Core.so.6" | grep -oE "^6\.[0-9]+\.[0-9]+$" | head -1)
+          echo "Qt $VERSION resolves cleanly"
 
       - name: Version
         run: echo "VERSION=$(echo "${GITHUB_REF_NAME#v}" | tr -cd '0-9A-Za-z._-')" >> "$GITHUB_ENV"
