@@ -2,6 +2,7 @@
 #include <QDir>
 #include <QFile>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -285,6 +286,9 @@ int main(int argc, char *argv[])
 
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("silisten"));
+
+    QIcon::setThemeName(QStringLiteral("Adwaita"));
+    QIcon::setFallbackThemeName(QStringLiteral("Adwaita"));
 
     Backend backend;
 
