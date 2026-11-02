@@ -94,14 +94,18 @@ def speech_dir(name: str) -> Path:
 
 def speech_repo(cfg) -> dict:
     name = cfg.get("speech_model") or "large-v3"
-    return {"name": name, **SPEECH.get(name, SPEECH["large-v3"])}
+    if name in SPEECH:
+        return {"name": name, **SPEECH[name]}
+    return {"name": name, "repo": name, "label": name, "size_gb": 0, "note": "custom model"}
 
 
 def romanian_repo(cfg):
     name = cfg.get("romanian_model")
     if not name:
         return None
-    return {"name": name, **ROMANIAN.get(name, ROMANIAN["fra-piz-turbo"])}
+    if name in ROMANIAN:
+        return {"name": name, **ROMANIAN[name]}
+    return {"name": name, "repo": name, "label": name, "size_gb": 0, "note": "custom model"}
 
 
 def _in_hub_cache(repo: str) -> bool:
@@ -120,12 +124,12 @@ def is_installed(kind: str, name: str) -> bool:
         if (base / "speech" / name / "config.json").is_file():
             return True
         entry = SPEECH.get(name)
-        return bool(entry) and _in_hub_cache(entry["repo"])
+        return _in_hub_cache(entry["repo"] if entry else name)
     if kind == "romanian":
         if (base / "romanian" / name / "config.json").is_file():
             return True
         entry = ROMANIAN.get(name)
-        return bool(entry) and _in_hub_cache(entry["repo"])
+        return _in_hub_cache(entry["repo"] if entry else name)
     if kind == "vad":
         return (base / VAD[name]["file"]).is_file()
     if kind == "diarization":
@@ -146,10 +150,8 @@ def local_path(kind: str, name: str):
 
 
 def download_speech(kind: str, name: str, log=print) -> bool:
-    entry = SPEECH.get(name) if kind == "speech" else ROMANIAN.get(name)
-    if not entry:
-        log(f"unknown model {name}")
-        return False
+    registry = SPEECH if kind == "speech" else ROMANIAN
+    entry = registry.get(name) or {"repo": name, "label": name}
     target = root() / ("speech" if kind == "speech" else "romanian") / name
     if (target / "config.json").is_file():
         log(f"{entry['label']} already installed")

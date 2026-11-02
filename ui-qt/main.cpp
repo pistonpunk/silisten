@@ -31,7 +31,7 @@ QString readToken()
         return {};
     return QString::fromUtf8(file.readAll()).trimmed();
 }
-} // namespace
+} 
 
 class Backend : public QObject
 {
