@@ -19,6 +19,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake \
             qt6-base-dev qt6-declarative-dev qt6-wayland liblayershellqtinterface-dev \
+            qt6-base-dev-tools qt6-declarative-dev-tools \
             libgl1-mesa-dev libfuse2
 
       - name: Build the Qt UI
@@ -55,7 +56,9 @@ jobs:
       - name: Build AppImage
         env:
           QML_SOURCES_PATHS: ${{ github.workspace }}/ui-qt/qml
-          EXTRA_QT_MODULES: core;gui;qml;quick;network
+          EXTRA_QT_MODULES: core;gui;qml;quick;quickcontrols2;network
+          QMAKE: /usr/lib/qt6/bin/qmake
+          QT_SELECT: qt6
         run: |
           ./linuxdeploy --appdir AppDir \
             --executable AppDir/usr/bin/silisten-qt \
